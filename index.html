@@ -15,18 +15,12 @@
     @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
     .shake { animation: shake 0.3s ease; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spin { animation: spin 0.8s linear infinite; display: inline-block; }
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect, useCallback, useRef } = React;
-
-const REPO = "month21/anatomy-study";
-const DATA_PATH = "data.json";
-const GH_API = `https://api.github.com/repos/${REPO}/contents/${DATA_PATH}`;
 
 const DEFAULT_BONES = [
   { id:"cranium",     k:"두개골",   l:"Cranium",           axial:true,  cat:"두개골", desc:"뇌를 보호하는 8개의 뼈로 구성", tip:"전두·정·측측·후·접·사 = 8개!", story:"두개(頭蓋) = 머리 뚜껑. 뇌라는 귀한 물건을 담은 딱딱한 뚜껑 상자를 상상해봐!" },
@@ -40,12 +34,12 @@ const DEFAULT_BONES = [
   { id:"ribs",        k:"늑골",     l:"Ribs (12쌍)",       axial:true,  cat:"흉곽",   desc:"갈비뼈 12쌍. 진늑골(1~7), 가늑골(8~10), 부유늑골(11~12)", tip:"진(7)+가(3)+부유(2) = 12쌍!", story:"진짜(1~7)는 흉골에 직접 붙고, 가짜(8~10)는 연골로 연결, 부유(11~12)는 둥둥 떠다녀!" },
   { id:"clavicle",    k:"쇄골",     l:"Clavicle",          axial:false, cat:"상지대", desc:"빗장뼈. S자형. 낙상 시 골절 多", tip:"S자 모양! 손 짚고 넘어지면 → 쇄골 골절", story:"쇄(鎖)=자물쇠. S자 모양의 빗장처럼 어깨를 잠근다. 넘어질 때 손을 짚으면 충격이 전달돼 골절!" },
   { id:"scapula",     k:"견갑골",   l:"Scapula",           axial:false, cat:"상지대", desc:"어깨뼈. 삼각형. 17개 근육 부착", tip:"삼각형! 17개 근육의 집합소", story:"견갑(肩胛)=어깨 등판. 날개뼈라고도 불러. 삼각형 모양에 무려 17개 근육이 붙는 근육 허브!" },
-  { id:"humerus",     k:"상완골",   l:"Humerus",           axial:false, cat:"상지",   desc:"위팔뼈. 팔에서 가장 큰 뼈", tip:"상(上)완=위팔. 팔에서 최장!", story:"상완(上腕)=위팔. 팔씨름할 때 힘주는 바로 그 부위의 뼈. 팔 뼈 중 가장 길고 굵어!" },
-  { id:"radius",      k:"요골",     l:"Radius",            axial:false, cat:"상지",   desc:"노뼈. 아래팔 엄지쪽(외측). 콜레스 골절 多", tip:"요=엄지쪽! 콜레스 골절 부위", story:"요(橈)=노. 배의 노처럼 팔 회전의 중심! 엄지를 들어올리면 바깥쪽 뼈 = 요골." },
+  { id:"humerus",     k:"상완골",   l:"Humerus",           axial:false, cat:"상지",   desc:"위팔뼈. 팔에서 가장 큰 뼈", tip:"상(上)완=위팔. 팔에서 최장!", story:"상완(上腕)=위팔. '팔씨름할 때 힘주는 바로 그 부위'의 뼈. 팔 뼈 중 가장 길고 굵어!" },
+  { id:"radius",      k:"요골",     l:"Radius",            axial:false, cat:"상지",   desc:"노뼈. 아래팔 엄지쪽(외측). 콜레스 골절 多", tip:"요=엄지쪽! 콜레스 골절 부위", story:"요(橈)=노. 배의 노처럼 팔 회전의 중심! 엄지를 들어올리면 바깥쪽 뼈 = 요골. 콜레스 골절 단골!" },
   { id:"ulna",        k:"척골",     l:"Ulna",              axial:false, cat:"상지",   desc:"자뼈. 아래팔 새끼손가락쪽. 주두 형성", tip:"척=새끼쪽! 주두=팔꿈치 뾰족한 부분", story:"척(尺)=자(ruler). 새끼손가락 쪽의 길쭉한 뼈. 팔꿈치 뾰족한 주두가 바로 척골의 끝!" },
   { id:"carpals",     k:"수근골",   l:"Carpals (8개)",     axial:false, cat:"상지",   desc:"손목뼈 8개. 근위열 4개 + 원위열 4개", tip:"주월삼두 / 대소두유 = 8개!", story:"손목을 꺾을 때 느껴지는 작은 뼈들이 8개! 주상·월상·삼각·두상 / 대능형·소능형·두상·유구." },
   { id:"metacarpals", k:"중수골",   l:"Metacarpals (5개)", axial:false, cat:"상지",   desc:"손허리뼈 5개. 손바닥 형성", tip:"손바닥의 5개 뼈!", story:"손바닥을 펼치면 보이는 5개의 뼈대. 주먹 쥐면 너클로 볼록 튀어나오는 바로 그 뼈!" },
-  { id:"phalanges_h", k:"지골(손)", l:"Phalanges (손)",    axial:false, cat:"상지",   desc:"손가락뼈 14개. 엄지=2마디, 나머지=3마디", tip:"엄지 2+나머지 4×3=14개!", story:"엄지는 2마디(근위·원위), 나머지 손가락은 3마디. 2 + 4×3 = 14!" },
+  { id:"phalanges_h", k:"지골(손)", l:"Phalanges (손)",    axial:false, cat:"상지",   desc:"손가락뼈 14개. 엄지=2마디, 나머지=3마디", tip:"엄지 2+나머지 4×3=14개!", story:"엄지는 2마디(근위·원위), 나머지 손가락은 3마디(근위·중위·원위). 2 + 4×3 = 14!" },
   { id:"ilium",       k:"장골",     l:"Ilium",             axial:false, cat:"하지대", desc:"엉덩뼈. 골반 최대·최광. ASIS 촉지 가능", tip:"장=크고 넓다! ASIS 직접 만져보기", story:"장(腸)=창자 옆 뼈. 골반에서 가장 넓고 큰 날개 모양. 허리 양쪽 튀어나온 ASIS를 직접 만져봐!" },
   { id:"ischium",     k:"좌골",     l:"Ischium",           axial:false, cat:"하지대", desc:"궁둥뼈. 앉을 때 체중이 실리는 뼈", tip:"좌(坐)=앉다! 의자에 닿는 뼈", story:"좌(坐)=앉다! 의자에 앉으면 딱딱하게 닿는 그 부분이 바로 좌골. 오래 앉으면 아픈 이유!" },
   { id:"pubis",       k:"치골",     l:"Pubis",             axial:false, cat:"하지대", desc:"두덩뼈. 골반 전면. 분만 시 이완", tip:"골반 앞 연결! 분만 시 산도 확장", story:"골반 앞쪽 가운데를 연결하는 뼈. 출산 때 이 연결부가 느슨해져 아기가 나올 공간을 만들어줘!" },
@@ -78,31 +72,20 @@ const CAT_COLOR = {
 function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function normalize(s){return s.trim().toLowerCase().replace(/\s+/g," ");}
 
-// ── GITHUB API ──
-async function ghGet(token){
-  const res=await fetch(GH_API,{headers:{Authorization:`token ${token}`,Accept:"application/vnd.github.v3+json"}});
-  if(res.status===404)return null;
-  if(!res.ok)throw new Error(`GitHub 오류: ${res.status}`);
-  return res.json();
-}
-
-async function ghSave(token,bones,sha){
-  const content=btoa(unescape(encodeURIComponent(JSON.stringify(bones,null,2))));
-  const body={message:sha?"단어 데이터 업데이트":"단어 데이터 초기화",content,...(sha&&{sha})};
-  const res=await fetch(GH_API,{method:"PUT",headers:{Authorization:`token ${token}`,Accept:"application/vnd.github.v3+json","Content-Type":"application/json"},body:JSON.stringify(body)});
-  if(!res.ok){const e=await res.json();throw new Error(e.message||"저장 실패");}
-  return (await res.json()).content.sha;
-}
-
-function loadToken(){try{return localStorage.getItem("gh_token")||"";}catch{return "";}}
-function saveToken(t){try{localStorage.setItem("gh_token",t);}catch{}}
+function loadBones(){try{const r=localStorage.getItem("ab3");if(r)return JSON.parse(r);}catch{}return DEFAULT_BONES;}
+function saveBones(b){try{localStorage.setItem("ab3",JSON.stringify(b));}catch{}}
 function loadStats(){try{const r=localStorage.getItem("as2");if(r)return JSON.parse(r);}catch{}return {};}
 function saveStats(s){try{localStorage.setItem("as2",JSON.stringify(s));}catch{}}
+function loadImages(){try{const r=localStorage.getItem("fc_imgs");if(r)return JSON.parse(r);}catch{}return {};}
+function saveImages(v){try{localStorage.setItem("fc_imgs",JSON.stringify(v));}catch{}}
+function loadImgPos(){try{const r=localStorage.getItem("fc_pos");if(r)return r;}catch{}return "back";}
+function saveImgPos(v){try{localStorage.setItem("fc_pos",v);}catch{}}
 
 function Tag({label,color,small}){
   return <span style={{display:"inline-block",padding:small?"2px 8px":"3px 10px",borderRadius:20,fontSize:small?10:11,fontWeight:700,background:color+"22",color,border:`1px solid ${color}44`}}>{label}</span>;
 }
 
+// ── SHARED MODAL ──
 function Modal({bone,onClose}){
   if(!bone)return null;
   const c=CAT_COLOR[bone.cat];
@@ -114,57 +97,12 @@ function Modal({bone,onClose}){
           <Tag label={bone.axial?"축뼈대":"팔다리뼈대"} color={bone.axial?"#0ea5e9":"#f97316"}/>
           <Tag label={bone.cat} color={c}/>
         </div>
-        <div style={{fontSize:30,fontWeight:900,color:"#111827"}}>{bone.k}</div>
+        <div style={{fontSize:30,fontWeight:900,color:"#111827",letterSpacing:-0.5}}>{bone.k}</div>
         <div style={{fontSize:13,color:"#9ca3af",fontStyle:"italic",fontFamily:"Georgia,serif",margin:"4px 0 14px"}}>{bone.l}</div>
         {bone.desc&&<div style={{fontSize:14,color:"#374151",lineHeight:1.8,marginBottom:12}}>{bone.desc}</div>}
         {bone.tip&&<div style={{padding:"11px 14px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:10,fontSize:13,color:"#92400e",lineHeight:1.6,marginBottom:10}}>💡 {bone.tip}</div>}
         {bone.story&&<div style={{padding:"11px 14px",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,fontSize:13,color:"#166534",lineHeight:1.7}}>📖 {bone.story}</div>}
         <button onClick={onClose} style={{marginTop:20,width:"100%",padding:15,borderRadius:12,border:"none",background:"#111827",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>닫기</button>
-      </div>
-    </div>
-  );
-}
-
-// ── TOKEN SETUP SCREEN ──
-function TokenSetup({onSave}){
-  const [val,setVal]=useState("");
-  const [loading,setLoading]=useState(false);
-  const [err,setErr]=useState("");
-  async function test(){
-    if(!val.trim())return;
-    setLoading(true);setErr("");
-    try{
-      const res=await fetch(`https://api.github.com/repos/${REPO}`,{headers:{Authorization:`token ${val.trim()}`}});
-      if(!res.ok)throw new Error("토큰이 올바르지 않거나 repo 접근 권한이 없어요.");
-      saveToken(val.trim());
-      onSave(val.trim());
-    }catch(e){setErr(e.message);}
-    setLoading(false);
-  }
-  return(
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:24,background:"#f8fafc"}}>
-      <div style={{width:"100%",maxWidth:380,background:"#fff",borderRadius:20,padding:28,boxShadow:"0 4px 24px rgba(0,0,0,0.08)"}}>
-        <div style={{fontSize:32,textAlign:"center",marginBottom:8}}>🔑</div>
-        <div style={{fontSize:18,fontWeight:900,color:"#111827",textAlign:"center",marginBottom:6}}>GitHub 토큰 입력</div>
-        <div style={{fontSize:13,color:"#6b7280",textAlign:"center",marginBottom:20,lineHeight:1.6}}>
-          단어를 GitHub에 저장하려면<br/>Personal Access Token이 필요해요.<br/>
-          <span style={{fontSize:11,color:"#9ca3af"}}>토큰은 이 기기에만 저장되고 외부로 전송되지 않아요.</span>
-        </div>
-        <input
-          type="password"
-          value={val}
-          onChange={e=>setVal(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&test()}
-          placeholder="ghp_xxxxxxxxxxxx"
-          style={{width:"100%",padding:"12px 14px",border:`1.5px solid ${err?"#fca5a5":"#e5e7eb"}`,borderRadius:10,fontSize:14,outline:"none",fontFamily:"monospace",marginBottom:10}}
-        />
-        {err&&<div style={{fontSize:12,color:"#dc2626",marginBottom:10,padding:"8px 12px",background:"#fef2f2",borderRadius:8}}>❌ {err}</div>}
-        <button onClick={test} disabled={!val.trim()||loading} style={{width:"100%",padding:13,borderRadius:10,border:"none",background:(!val.trim()||loading)?"#e5e7eb":"#111827",color:(!val.trim()||loading)?"#9ca3af":"#fff",fontSize:14,fontWeight:700,cursor:(!val.trim()||loading)?"default":"pointer"}}>
-          {loading?<span><span className="spin">⏳</span> 확인 중...</span>:"연결하기"}
-        </button>
-        <div style={{marginTop:14,fontSize:11,color:"#9ca3af",lineHeight:1.7,textAlign:"center"}}>
-          github.com → Settings → Developer settings<br/>→ Personal access tokens → Tokens (classic)<br/>→ repo 권한 체크 후 생성
-        </div>
       </div>
     </div>
   );
@@ -215,13 +153,14 @@ function ClassificationMode({bones}){
   );
 }
 
-// ── COMPARISON ──
+// ── COMPARISON (나란히 only) ──
 function ComparisonMode({bones}){
   const [pairIdx,setPairIdx]=useState(0);
   const vp=PAIRS.filter(p=>bones.find(b=>b.id===p.a)&&bones.find(b=>b.id===p.b));
   if(!vp.length)return<div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>비교할 쌍이 없습니다.</div>;
   const pair=vp[pairIdx%vp.length];
   const bA=bones.find(b=>b.id===pair.a),bB=bones.find(b=>b.id===pair.b);
+
   function Card({bone}){
     const c=CAT_COLOR[bone.cat];
     return(
@@ -235,6 +174,7 @@ function ComparisonMode({bones}){
       </div>
     );
   }
+
   return(
     <div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
@@ -246,7 +186,7 @@ function ComparisonMode({bones}){
       <div style={{padding:"9px 14px",background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,fontSize:13,color:"#0369a1",marginBottom:14,fontWeight:600}}>⚡ {pair.note}</div>
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         <Card bone={bA}/>
-        <div style={{textAlign:"center",color:"#d1d5db",fontSize:16}}>vs</div>
+        <div style={{textAlign:"center",color:"#d1d5db",fontSize:16,fontWeight:300}}>vs</div>
         <Card bone={bB}/>
       </div>
     </div>
@@ -254,35 +194,85 @@ function ComparisonMode({bones}){
 }
 
 // ── FLASHCARD ──
-function FlashcardMode({bones}){
+function FlashcardMode({bones,images,setImages}){
   const [cards]=useState(()=>shuffle(bones));
   const [idx,setIdx]=useState(0);
   const [flipped,setFlipped]=useState(false);
   const [dir,setDir]=useState("k2l");
+  const [imgPos,setImgPos]=useState(()=>loadImgPos());
+  const [showSettings,setShowSettings]=useState(false);
+  const fileRef=useRef(null);
   const card=cards[idx%cards.length];
+  const cardImg=images[card.id]||null;
+
+  function handleImgUpload(e){
+    const file=e.target.files[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{const updated={...images,[card.id]:ev.target.result};setImages(updated);saveImages(updated);};
+    reader.readAsDataURL(file);
+    e.target.value="";
+  }
+  function removeImg(){const updated={...images};delete updated[card.id];setImages(updated);saveImages(updated);}
+  function changePos(p){setImgPos(p);saveImgPos(p);}
+
+  const showImgFront=cardImg&&(imgPos==="front"||imgPos==="both");
+  const showImgBack=cardImg&&(imgPos==="back"||imgPos==="both");
+
   return(
     <div style={{maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
-      <div style={{display:"flex",gap:6,width:"100%"}}>
+      <div style={{display:"flex",gap:6,width:"100%",alignItems:"center"}}>
         {[["k2l","한 → 라틴"],["l2k","라틴 → 한"]].map(([d,l])=>(
           <button key={d} onClick={()=>setDir(d)} style={{flex:1,padding:11,borderRadius:12,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:dir===d?"#111827":"#f3f4f6",color:dir===d?"#fff":"#6b7280"}}>{l}</button>
         ))}
+        <button onClick={()=>setShowSettings(s=>!s)} style={{padding:"10px 12px",borderRadius:12,border:`1px solid ${showSettings?"#111827":"#e5e7eb"}`,background:showSettings?"#111827":"#fff",color:showSettings?"#fff":"#6b7280",cursor:"pointer",fontSize:14,flexShrink:0}}>⚙️</button>
       </div>
-      <div style={{width:"100%",fontSize:12,color:"#9ca3af"}}>{(idx%cards.length)+1} / {cards.length}</div>
+
+      {showSettings&&(
+        <div style={{width:"100%",padding:16,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:12}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#374151",marginBottom:10,letterSpacing:1}}>🖼 이미지 표시 위치</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[["none","없음"],["front","앞면"],["back","뒷면"],["both","앞+뒤"]].map(([v,l])=>(
+              <button key={v} onClick={()=>changePos(v)} style={{padding:"7px 14px",borderRadius:20,border:`1px solid ${imgPos===v?"#111827":"#e5e7eb"}`,background:imgPos===v?"#111827":"#fff",color:imgPos===v?"#fff":"#6b7280",cursor:"pointer",fontSize:12,fontWeight:600}}>{l}</button>
+            ))}
+          </div>
+          <div style={{fontSize:11,color:"#9ca3af",marginTop:8}}>카드 하단 버튼으로 현재 카드에 이미지를 추가할 수 있어요.</div>
+        </div>
+      )}
+
+      <div style={{width:"100%",fontSize:12,color:"#9ca3af",display:"flex",justifyContent:"space-between"}}>
+        <span>{(idx%cards.length)+1} / {cards.length}</span>
+        {cardImg&&<span style={{color:"#0ea5e9"}}>🖼 이미지 있음</span>}
+      </div>
       <div style={{width:"100%",height:3,background:"#f3f4f6",borderRadius:2}}>
         <div style={{width:`${(((idx%cards.length)+1)/cards.length)*100}%`,height:"100%",background:"#111827",borderRadius:2,transition:"width 0.3s"}}/>
       </div>
+
       <div onClick={()=>setFlipped(f=>!f)} style={{width:"100%",minHeight:240,padding:24,borderRadius:16,cursor:"pointer",background:flipped?`linear-gradient(135deg,${CAT_COLOR[card.cat]}10,#fff)`:"#f9fafb",border:`1.5px solid ${flipped?CAT_COLOR[card.cat]+"55":"#e5e7eb"}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,textAlign:"center",userSelect:"none",transition:"all 0.22s"}}>
         <Tag label={card.cat} color={CAT_COLOR[card.cat]}/>
         {!flipped?<>
+          {showImgFront&&<img src={cardImg} alt="" style={{maxWidth:"100%",maxHeight:140,borderRadius:10,objectFit:"contain"}}/>}
           <div style={{fontSize:dir==="k2l"?36:22,fontWeight:800,color:"#111827",fontStyle:dir==="l2k"?"italic":"normal",fontFamily:dir==="l2k"?"Georgia,serif":"inherit",lineHeight:1.3}}>{dir==="k2l"?card.k:card.l}</div>
           <div style={{fontSize:12,color:"#9ca3af",marginTop:4}}>탭하여 뒤집기</div>
         </>:<>
+          {showImgBack&&<img src={cardImg} alt="" style={{maxWidth:"100%",maxHeight:140,borderRadius:10,objectFit:"contain"}}/>}
           <div style={{fontSize:12,color:"#9ca3af"}}>{dir==="k2l"?card.k:card.l}</div>
           <div style={{fontSize:dir==="l2k"?32:18,fontWeight:800,color:CAT_COLOR[card.cat],fontStyle:dir==="k2l"?"italic":"normal",fontFamily:dir==="k2l"?"Georgia,serif":"inherit",lineHeight:1.3}}>{dir==="k2l"?card.l:card.k}</div>
           {card.tip&&<div style={{marginTop:4,padding:"9px 12px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:10,fontSize:12,color:"#92400e",maxWidth:340,textAlign:"left"}}>💡 {card.tip}</div>}
           {card.story&&<div style={{padding:"9px 12px",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,fontSize:12,color:"#166534",maxWidth:340,textAlign:"left"}}>📖 {card.story}</div>}
         </>}
       </div>
+
+      {imgPos!=="none"&&(
+        <div style={{display:"flex",gap:8,width:"100%"}}>
+          <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImgUpload}/>
+          <button onClick={()=>fileRef.current.click()} style={{flex:1,padding:"10px",borderRadius:10,border:"1px dashed #0ea5e9",background:"#f0f9ff",color:"#0369a1",cursor:"pointer",fontSize:13,fontWeight:600}}>
+            {cardImg?"🔄 이미지 교체":"📷 이미지 추가"}
+          </button>
+          {cardImg&&<button onClick={removeImg} style={{padding:"10px 14px",borderRadius:10,border:"1px solid #fca5a5",background:"#fff5f5",color:"#dc2626",cursor:"pointer",fontSize:13}}>🗑</button>}
+        </div>
+      )}
+
       <div style={{display:"flex",gap:10,width:"100%"}}>
         <button onClick={()=>{setIdx(i=>Math.max(0,i-1));setFlipped(false);}} disabled={idx===0} style={{flex:1,padding:14,borderRadius:12,border:"1px solid #e5e7eb",background:"#fff",color:idx===0?"#d1d5db":"#374151",cursor:idx===0?"default":"pointer",fontSize:14}}>← 이전</button>
         <button onClick={()=>{setIdx(i=>i+1);setFlipped(false);}} style={{flex:2,padding:14,borderRadius:12,border:"none",background:"#111827",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>다음 →</button>
@@ -293,7 +283,7 @@ function FlashcardMode({bones}){
 
 // ── QUIZ ──
 function QuizMode({bones,onWrong}){
-  const [tab,setTab]=useState("choice");
+  const [tab,setTab]=useState("choice"); // "choice" | "input"
   return(
     <div>
       <div style={{display:"flex",gap:6,marginBottom:18}}>
@@ -313,7 +303,12 @@ function ChoiceQuiz({bones,onWrong}){
   const [opts,setOpts]=useState([]);
   const [sel,setSel]=useState(null);
   const [dir,setDir]=useState("k2l");
-  function next(){if(bones.length<4)return;const b=bones[Math.floor(Math.random()*bones.length)];setOpts(shuffle([b,...shuffle(bones.filter(x=>x.id!==b.id)).slice(0,3)]));setCurr(b);setSel(null);}
+  function next(){
+    if(bones.length<4)return;
+    const b=bones[Math.floor(Math.random()*bones.length)];
+    setOpts(shuffle([b,...shuffle(bones.filter(x=>x.id!==b.id)).slice(0,3)]));
+    setCurr(b);setSel(null);
+  }
   useEffect(()=>{next();},[bones.length,dir]);
   if(!curr||bones.length<4)return<div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>단어가 4개 이상 필요합니다.</div>;
   const answer=opt=>{if(sel)return;const ok=opt.id===curr.id;setSel(opt);setScore(s=>({c:s.c+(ok?1:0),t:s.t+1}));if(!ok)onWrong(curr.id);};
@@ -326,7 +321,11 @@ function ChoiceQuiz({bones,onWrong}){
             <button key={d} onClick={()=>setDir(d)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:dir===d?"#111827":"#f3f4f6",color:dir===d?"#fff":"#6b7280"}}>{l}</button>
           ))}
         </div>
-        {acc!==null&&<div style={{display:"flex",gap:10,fontSize:13}}><span style={{color:"#16a34a",fontWeight:700}}>✓{score.c}</span><span style={{color:"#dc2626",fontWeight:700}}>✗{score.t-score.c}</span><span style={{color:"#9ca3af",fontWeight:600}}>{acc}%</span></div>}
+        {acc!==null&&<div style={{display:"flex",gap:10,fontSize:13}}>
+          <span style={{color:"#16a34a",fontWeight:700}}>✓{score.c}</span>
+          <span style={{color:"#dc2626",fontWeight:700}}>✗{score.t-score.c}</span>
+          <span style={{color:"#9ca3af",fontWeight:600}}>{acc}%</span>
+        </div>}
       </div>
       <div style={{padding:22,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:14,textAlign:"center"}}>
         <Tag label={curr.cat} color={CAT_COLOR[curr.cat]}/>
@@ -350,23 +349,37 @@ function InputQuiz({bones,onWrong}){
   const [curr,setCurr]=useState(null);
   const [dir,setDir]=useState("k2l");
   const [input,setInput]=useState("");
-  const [result,setResult]=useState(null);
+  const [result,setResult]=useState(null); // null | "correct" | "wrong"
   const [shakeKey,setShakeKey]=useState(0);
   const inputRef=useRef(null);
-  function next(){if(!bones.length)return;setCurr(bones[Math.floor(Math.random()*bones.length)]);setInput("");setResult(null);setTimeout(()=>inputRef.current&&inputRef.current.focus(),50);}
+
+  function next(){
+    if(!bones.length)return;
+    setCurr(bones[Math.floor(Math.random()*bones.length)]);
+    setInput("");setResult(null);
+    setTimeout(()=>inputRef.current&&inputRef.current.focus(),50);
+  }
   useEffect(()=>{next();},[bones.length,dir]);
   if(!curr)return null;
+
   const correctAnswer=dir==="k2l"?curr.l:curr.k;
+
   function checkAnswer(){
     if(result||!input.trim())return;
-    const userAns=normalize(input),fullAns=normalize(correctAnswer),baseAns=normalize(correctAnswer.split("(")[0]);
+    // For Latin names with parentheses like "Cervical (C1~C7)", accept base name too
+    const userAns=normalize(input);
+    const fullAns=normalize(correctAnswer);
+    const baseAns=normalize(correctAnswer.split("(")[0]);
     const ok=userAns===fullAns||userAns===baseAns;
     setResult(ok?"correct":"wrong");
     setScore(s=>({c:s.c+(ok?1:0),t:s.t+1}));
-    if(!ok){onWrong(curr.id);setShakeKey(k=>k+1);}
+    if(!ok)onWrong(curr.id);
+    if(!ok){setShakeKey(k=>k+1);}
   }
+
   function handleKey(e){if(e.key==="Enter"){if(result)next();else checkAnswer();}}
   const acc=score.t>0?Math.round(score.c/score.t*100):null;
+
   return(
     <div style={{maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -375,25 +388,61 @@ function InputQuiz({bones,onWrong}){
             <button key={d} onClick={()=>setDir(d)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:dir===d?"#111827":"#f3f4f6",color:dir===d?"#fff":"#6b7280"}}>{l}</button>
           ))}
         </div>
-        {acc!==null&&<div style={{display:"flex",gap:10,fontSize:13}}><span style={{color:"#16a34a",fontWeight:700}}>✓{score.c}</span><span style={{color:"#dc2626",fontWeight:700}}>✗{score.t-score.c}</span><span style={{color:"#9ca3af",fontWeight:600}}>{acc}%</span></div>}
+        {acc!==null&&<div style={{display:"flex",gap:10,fontSize:13}}>
+          <span style={{color:"#16a34a",fontWeight:700}}>✓{score.c}</span>
+          <span style={{color:"#dc2626",fontWeight:700}}>✗{score.t-score.c}</span>
+          <span style={{color:"#9ca3af",fontWeight:600}}>{acc}%</span>
+        </div>}
       </div>
+
+      {/* Question */}
       <div style={{padding:22,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:14,textAlign:"center"}}>
         <Tag label={curr.cat} color={CAT_COLOR[curr.cat]}/>
         <div style={{fontSize:30,fontWeight:800,color:"#111827",margin:"12px 0 4px",fontStyle:dir==="l2k"?"italic":"normal",fontFamily:dir==="l2k"?"Georgia,serif":"inherit",lineHeight:1.3}}>{dir==="k2l"?curr.k:curr.l}</div>
         <div style={{fontSize:12,color:"#9ca3af"}}>{dir==="k2l"?"라틴어":"한국어"}로 직접 입력하세요</div>
       </div>
+
+      {/* Input */}
       <div key={shakeKey} className={result==="wrong"?"shake":""} style={{position:"relative"}}>
-        <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={handleKey} disabled={!!result} placeholder={dir==="k2l"?"라틴어 명칭 입력...":"한국어 명칭 입력..."} style={{width:"100%",padding:"14px 16px",borderRadius:12,fontSize:15,fontFamily:dir==="k2l"?"Georgia,serif":"inherit",fontStyle:dir==="k2l"?"italic":"normal",border:`1.5px solid ${result==="correct"?"#86efac":result==="wrong"?"#fca5a5":"#e5e7eb"}`,background:result==="correct"?"#f0fdf4":result==="wrong"?"#fef2f2":"#fff",color:result==="correct"?"#166534":result==="wrong"?"#991b1b":"#111827",outline:"none",transition:"all 0.18s"}}/>
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={e=>setInput(e.target.value)}
+          onKeyDown={handleKey}
+          disabled={!!result}
+          placeholder={dir==="k2l"?"라틴어 명칭 입력...":"한국어 명칭 입력..."}
+          style={{
+            width:"100%",padding:"14px 16px",borderRadius:12,fontSize:15,fontFamily:dir==="k2l"?"Georgia,serif":"inherit",fontStyle:dir==="k2l"?"italic":"normal",
+            border:`1.5px solid ${result==="correct"?"#86efac":result==="wrong"?"#fca5a5":"#e5e7eb"}`,
+            background:result==="correct"?"#f0fdf4":result==="wrong"?"#fef2f2":"#fff",
+            color:result==="correct"?"#166534":result==="wrong"?"#991b1b":"#111827",
+            outline:"none",transition:"all 0.18s",
+          }}
+        />
         {result&&<span style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",fontSize:18}}>{result==="correct"?"✅":"❌"}</span>}
       </div>
-      {result&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {result==="wrong"&&<div style={{padding:"12px 14px",background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:10,fontSize:14,color:"#991b1b",fontWeight:600}}>정답: <span style={{fontStyle:dir==="k2l"?"italic":"normal",fontFamily:dir==="k2l"?"Georgia,serif":"inherit"}}>{correctAnswer}</span></div>}
-        {result==="correct"&&<div style={{padding:"12px 14px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:10,fontSize:14,color:"#166534",fontWeight:600,textAlign:"center"}}>🎉 정답!</div>}
-        {curr.tip&&<div style={{padding:"10px 14px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:10,fontSize:13,color:"#92400e"}}>💡 {curr.tip}</div>}
-        {curr.story&&<div style={{padding:"10px 14px",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,fontSize:13,color:"#166534"}}>📖 {curr.story}</div>}
-        <button onClick={next} style={{padding:14,borderRadius:12,border:"none",background:"#111827",color:"#fff",cursor:"pointer",fontSize:15,fontWeight:700}}>다음 문제 → (Enter)</button>
-      </div>}
-      {!result&&<button onClick={checkAnswer} disabled={!input.trim()} style={{padding:14,borderRadius:12,border:"none",background:!input.trim()?"#e5e7eb":"#111827",color:!input.trim()?"#9ca3af":"#fff",cursor:!input.trim()?"default":"pointer",fontSize:15,fontWeight:700}}>확인 (Enter)</button>}
+
+      {/* Feedback */}
+      {result&&(
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {result==="wrong"&&(
+            <div style={{padding:"12px 14px",background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:10,fontSize:14,color:"#991b1b",fontWeight:600}}>
+              정답: <span style={{fontStyle:dir==="k2l"?"italic":"normal",fontFamily:dir==="k2l"?"Georgia,serif":"inherit"}}>{correctAnswer}</span>
+            </div>
+          )}
+          {result==="correct"&&(
+            <div style={{padding:"12px 14px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:10,fontSize:14,color:"#166534",fontWeight:600,textAlign:"center"}}>
+              🎉 정답!
+            </div>
+          )}
+          {curr.tip&&<div style={{padding:"10px 14px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:10,fontSize:13,color:"#92400e"}}>💡 {curr.tip}</div>}
+          {curr.story&&<div style={{padding:"10px 14px",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,fontSize:13,color:"#166534"}}>📖 {curr.story}</div>}
+          <button onClick={next} style={{padding:14,borderRadius:12,border:"none",background:"#111827",color:"#fff",cursor:"pointer",fontSize:15,fontWeight:700}}>다음 문제 → (Enter)</button>
+        </div>
+      )}
+      {!result&&(
+        <button onClick={checkAnswer} disabled={!input.trim()} style={{padding:14,borderRadius:12,border:"none",background:!input.trim()?"#e5e7eb":"#111827",color:!input.trim()?"#9ca3af":"#fff",cursor:!input.trim()?"default":"pointer",fontSize:15,fontWeight:700}}>확인 (Enter)</button>
+      )}
     </div>
   );
 }
@@ -407,28 +456,67 @@ function StatsMode({bones,stats,onClear}){
   const catMap={};
   entries.forEach(({bone,cnt})=>{if(!catMap[bone.cat])catMap[bone.cat]={cnt:0,n:0};catMap[bone.cat].cnt+=cnt;catMap[bone.cat].n+=1;});
   const catList=Object.entries(catMap).sort((a,b)=>b[1].cnt-a[1].cnt);
-  if(!entries.length)return(<div style={{textAlign:"center",padding:"60px 20px"}}><div style={{fontSize:40,marginBottom:16}}>🎉</div><div style={{fontSize:18,fontWeight:800,color:"#111827",marginBottom:8}}>아직 틀린 문제가 없어요!</div><div style={{fontSize:14,color:"#9ca3af"}}>퀴즈를 풀면 통계가 쌓여요.</div></div>);
-  return(<>
-    <div style={{display:"flex",flexDirection:"column",gap:20}}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-        {[{label:"총 오답",value:total,color:"#ef4444"},{label:"취약 단어",value:`${entries.length}개`,color:"#f97316"},{label:"최다 오답",value:entries[0]?.bone.k,color:"#6366f1"}].map(({label,value,color})=>(
-          <div key={label} style={{padding:"14px 10px",background:"#f9fafb",border:`1px solid ${color}22`,borderRadius:12,textAlign:"center"}}><div style={{fontSize:10,color:"#9ca3af",marginBottom:4}}>{label}</div><div style={{fontSize:17,fontWeight:800,color}}>{value}</div></div>
-        ))}
-      </div>
-      <div><div style={{fontSize:13,fontWeight:700,color:"#374151",marginBottom:10}}>📊 취약 카테고리</div>
-        <div style={{display:"flex",flexDirection:"column",gap:7}}>
-          {catList.map(([cat,{cnt,n}])=>(<div key={cat} style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:6,height:6,borderRadius:"50%",background:CAT_COLOR[cat],flexShrink:0}}/><span style={{fontSize:13,fontWeight:600,color:"#374151",width:52,flexShrink:0}}>{cat}</span><div style={{flex:1,height:8,background:"#f3f4f6",borderRadius:4,overflow:"hidden"}}><div style={{width:`${(cnt/total)*100}%`,height:"100%",background:CAT_COLOR[cat],borderRadius:4}}/></div><span style={{fontSize:11,color:"#9ca3af",flexShrink:0}}>{cnt}회/{n}개</span></div>))}
-        </div>
-      </div>
-      <div><div style={{fontSize:13,fontWeight:700,color:"#374151",marginBottom:10}}>🔴 자주 틀리는 단어</div>
-        <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {entries.map(({bone,cnt},i)=>(<button key={bone.id} onClick={()=>setPopup(bone)} style={{padding:"12px 14px",borderRadius:12,border:"1px solid #e5e7eb",background:"#fff",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:14,fontWeight:800,color:"#9ca3af",width:22,textAlign:"center",flexShrink:0}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}`}</span><div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,flexWrap:"wrap"}}><span style={{fontSize:15,fontWeight:700,color:"#111827"}}>{bone.k}</span><Tag label={bone.cat} color={CAT_COLOR[bone.cat]} small/></div><div style={{fontSize:11,color:"#9ca3af",fontStyle:"italic",fontFamily:"Georgia,serif"}}>{bone.l}</div></div><div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:16,fontWeight:800,color:"#ef4444"}}>{cnt}회</div><div style={{width:56,height:4,background:"#f3f4f6",borderRadius:2,marginTop:3}}><div style={{width:`${(cnt/maxCnt)*100}%`,height:"100%",background:"#ef4444",borderRadius:2}}/></div></div></button>))}
-        </div>
-      </div>
-      <button onClick={onClear} style={{padding:12,borderRadius:10,border:"1px solid #fca5a5",background:"#fff5f5",color:"#dc2626",cursor:"pointer",fontSize:13,fontWeight:600}}>🗑️ 통계 초기화</button>
+  if(!entries.length)return(
+    <div style={{textAlign:"center",padding:"60px 20px"}}>
+      <div style={{fontSize:40,marginBottom:16}}>🎉</div>
+      <div style={{fontSize:18,fontWeight:800,color:"#111827",marginBottom:8}}>아직 틀린 문제가 없어요!</div>
+      <div style={{fontSize:14,color:"#9ca3af"}}>퀴즈를 풀면 통계가 쌓여요.</div>
     </div>
-    <Modal bone={popup} onClose={()=>setPopup(null)}/>
-  </>);
+  );
+  return(
+    <>
+      <div style={{display:"flex",flexDirection:"column",gap:20}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+          {[{label:"총 오답",value:total,color:"#ef4444"},{label:"취약 단어",value:`${entries.length}개`,color:"#f97316"},{label:"최다 오답",value:entries[0]?.bone.k,color:"#6366f1"}].map(({label,value,color})=>(
+            <div key={label} style={{padding:"14px 10px",background:"#f9fafb",border:`1px solid ${color}22`,borderRadius:12,textAlign:"center"}}>
+              <div style={{fontSize:10,color:"#9ca3af",marginBottom:4}}>{label}</div>
+              <div style={{fontSize:17,fontWeight:800,color}}>{value}</div>
+            </div>
+          ))}
+        </div>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"#374151",marginBottom:10}}>📊 취약 카테고리</div>
+          <div style={{display:"flex",flexDirection:"column",gap:7}}>
+            {catList.map(([cat,{cnt,n}])=>(
+              <div key={cat} style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:6,height:6,borderRadius:"50%",background:CAT_COLOR[cat],flexShrink:0}}/>
+                <span style={{fontSize:13,fontWeight:600,color:"#374151",width:52,flexShrink:0}}>{cat}</span>
+                <div style={{flex:1,height:8,background:"#f3f4f6",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{width:`${(cnt/total)*100}%`,height:"100%",background:CAT_COLOR[cat],borderRadius:4}}/>
+                </div>
+                <span style={{fontSize:11,color:"#9ca3af",flexShrink:0}}>{cnt}회/{n}개</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"#374151",marginBottom:10}}>🔴 자주 틀리는 단어</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {entries.map(({bone,cnt},i)=>(
+              <button key={bone.id} onClick={()=>setPopup(bone)} style={{padding:"12px 14px",borderRadius:12,border:"1px solid #e5e7eb",background:"#fff",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+                <span style={{fontSize:14,fontWeight:800,color:"#9ca3af",width:22,textAlign:"center",flexShrink:0}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}`}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,flexWrap:"wrap"}}>
+                    <span style={{fontSize:15,fontWeight:700,color:"#111827"}}>{bone.k}</span>
+                    <Tag label={bone.cat} color={CAT_COLOR[bone.cat]} small/>
+                  </div>
+                  <div style={{fontSize:11,color:"#9ca3af",fontStyle:"italic",fontFamily:"Georgia,serif"}}>{bone.l}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:16,fontWeight:800,color:"#ef4444"}}>{cnt}회</div>
+                  <div style={{width:56,height:4,background:"#f3f4f6",borderRadius:2,marginTop:3}}>
+                    <div style={{width:`${(cnt/maxCnt)*100}%`,height:"100%",background:"#ef4444",borderRadius:2}}/>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <button onClick={onClear} style={{padding:12,borderRadius:10,border:"1px solid #fca5a5",background:"#fff5f5",color:"#dc2626",cursor:"pointer",fontSize:13,fontWeight:600}}>🗑️ 통계 초기화</button>
+      </div>
+      <Modal bone={popup} onClose={()=>setPopup(null)}/>
+    </>
+  );
 }
 
 // ── WORD MANAGER ──
@@ -436,7 +524,7 @@ const EMPTY_FORM={k:"",l:"",cat:"두개골",desc:"",tip:"",story:""};
 const ALL_CATS=["두개골","척주","흉곽","상지대","상지","하지대","하지"];
 const CAT_AXIAL={두개골:true,척주:true,흉곽:true,상지대:false,상지:false,하지대:false,하지:false};
 
-function WordManager({bones,onSave,saving}){
+function WordManager({bones,setBones}){
   const [form,setForm]=useState(EMPTY_FORM);
   const [editId,setEditId]=useState(null);
   const [search,setSearch]=useState("");
@@ -449,16 +537,13 @@ function WordManager({bones,onSave,saving}){
   function cancel(){setEditId(null);setForm(EMPTY_FORM);setOpen(false);}
   function save(){
     if(!form.k.trim()||!form.l.trim())return;
-    let updated;
-    if(editId){updated=bones.map(b=>b.id===editId?{...b,...form,axial:CAT_AXIAL[form.cat]}:b);}
-    else{updated=[...bones,{id:"c_"+Date.now(),...form,axial:CAT_AXIAL[form.cat]}];}
-    onSave(updated);cancel();
+    if(editId){const u=bones.map(b=>b.id===editId?{...b,...form,axial:CAT_AXIAL[form.cat]}:b);setBones(u);saveBones(u);cancel();}
+    else{const u=[...bones,{id:"c_"+Date.now(),...form,axial:CAT_AXIAL[form.cat]}];setBones(u);saveBones(u);setForm(EMPTY_FORM);setOpen(false);}
   }
-  function del(id){onSave(bones.filter(b=>b.id!==id));setConfirm(null);if(editId===id)cancel();}
-  function reset(){onSave(DEFAULT_BONES);cancel();setConfirm(null);}
+  function del(id){const u=bones.filter(b=>b.id!==id);setBones(u);saveBones(u);setConfirm(null);if(editId===id)cancel();}
+  function reset(){setBones(DEFAULT_BONES);saveBones(DEFAULT_BONES);cancel();setConfirm(null);}
   return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      {saving&&<div style={{padding:"10px 14px",background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:10,fontSize:13,color:"#0369a1",display:"flex",alignItems:"center",gap:8}}><span className="spin">⏳</span> GitHub에 저장 중...</div>}
       <div style={{display:"flex",gap:8}}>
         <input style={{...inp,flex:1}} placeholder="🔍 검색" value={search} onChange={e=>setSearch(e.target.value)}/>
         <button onClick={()=>{setEditId(null);setForm(EMPTY_FORM);setOpen(o=>!o);}} style={{padding:"10px 16px",borderRadius:10,border:"none",background:open?"#374151":"#111827",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700,whiteSpace:"nowrap"}}>{open?"닫기":"+ 추가"}</button>
@@ -477,7 +562,7 @@ function WordManager({bones,onSave,saving}){
             <div><label style={lbl}>연상 스토리 📖</label><textarea style={{...inp,resize:"vertical",minHeight:60}} placeholder="기억에 남는 연상 이야기..." value={form.story} onChange={e=>setForm(f=>({...f,story:e.target.value}))}/></div>
             <div style={{display:"flex",gap:8}}>
               {editId&&<button onClick={cancel} style={{flex:1,padding:12,borderRadius:10,border:"1px solid #e5e7eb",background:"#fff",color:"#6b7280",cursor:"pointer",fontSize:14}}>취소</button>}
-              <button onClick={save} disabled={!form.k.trim()||!form.l.trim()||saving} style={{flex:2,padding:12,borderRadius:10,border:"none",fontSize:14,fontWeight:700,cursor:"pointer",background:(!form.k.trim()||!form.l.trim()||saving)?"#e5e7eb":"#111827",color:(!form.k.trim()||!form.l.trim()||saving)?"#9ca3af":"#fff"}}>{saving?"저장 중...":editId?"저장":"추가"}</button>
+              <button onClick={save} disabled={!form.k.trim()||!form.l.trim()} style={{flex:2,padding:12,borderRadius:10,border:"none",fontSize:14,fontWeight:700,cursor:"pointer",background:(!form.k.trim()||!form.l.trim())?"#e5e7eb":"#111827",color:(!form.k.trim()||!form.l.trim())?"#9ca3af":"#fff"}}>{editId?"저장":"추가"}</button>
             </div>
           </div>
         </div>
@@ -520,53 +605,15 @@ function WordManager({bones,onSave,saving}){
   );
 }
 
-// ── MAIN APP ──
+// ── MAIN ──
 function App(){
-  const [token,setToken]=useState(()=>loadToken());
-  const [bones,setBones]=useState(DEFAULT_BONES);
-  const [sha,setSha]=useState(null);
-  const [loading,setLoading]=useState(false);
-  const [saving,setSaving]=useState(false);
-  const [saveErr,setSaveErr]=useState("");
+  const [bones,setBones]=useState(()=>loadBones());
   const [stats,setStats]=useState(()=>loadStats());
+  const [images,setImages]=useState(()=>loadImages());
   const [mode,setMode]=useState("classify");
-
-  // 토큰 있으면 GitHub에서 데이터 로드
-  useEffect(()=>{
-    if(!token)return;
-    setLoading(true);
-    ghGet(token).then(data=>{
-      if(data){
-        const content=JSON.parse(decodeURIComponent(escape(atob(data.content.replace(/\n/g,"")))));
-        setBones(content.length ? content : DEFAULT_BONES);
-        setSha(data.sha);
-      }
-    }).catch(()=>{}).finally(()=>setLoading(false));
-  },[token]);
-
-  const handleSave=useCallback(async(newBones)=>{
-    setBones(newBones);
-    setSaving(true);setSaveErr("");
-    try{
-      const newSha=await ghSave(token,newBones,sha);
-      setSha(newSha);
-    }catch(e){setSaveErr(e.message);}
-    setSaving(false);
-  },[token,sha]);
-
   const addWrong=useCallback((id)=>{setStats(s=>{const n={...s,[id]:(s[id]||0)+1};saveStats(n);return n;});},[]);
   const clearStats=()=>{setStats({});saveStats({});};
   const wrongTotal=Object.values(stats).reduce((a,b)=>a+b,0);
-
-  if(!token)return<TokenSetup onSave={t=>{setToken(t);}}/>;
-
-  if(loading)return(
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14,background:"#f8fafc"}}>
-      <span style={{fontSize:36}} className="spin">⏳</span>
-      <div style={{fontSize:14,color:"#6b7280"}}>GitHub에서 데이터 불러오는 중...</div>
-    </div>
-  );
-
   const MODES=[
     {id:"classify",label:"분류",icon:"📊"},
     {id:"compare",label:"비교",icon:"⚡"},
@@ -575,26 +622,19 @@ function App(){
     {id:"stats",label:"통계",icon:"📈",badge:wrongTotal>0?wrongTotal:null},
     {id:"manage",label:"단어",icon:"✏️"},
   ];
-
   return(
     <div style={{minHeight:"100vh",background:"#f8fafc",paddingBottom:68}}>
       <div style={{borderBottom:"1px solid #e5e7eb",background:"#fff",padding:"12px 16px",position:"sticky",top:0,zIndex:50,boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div>
-            <div style={{fontSize:15,fontWeight:900,letterSpacing:-0.5}}>🦴 골격계 해부학</div>
-            <div style={{fontSize:10,color:"#9ca3af",letterSpacing:1.5,marginTop:1}}>SKELETAL ANATOMY · {bones.length}개 단어</div>
-          </div>
-          <button onClick={()=>{saveToken("");setToken("");}} style={{fontSize:11,color:"#9ca3af",background:"none",border:"none",cursor:"pointer",padding:"4px 8px"}}>🔑 토큰 재설정</button>
-        </div>
-        {saveErr&&<div style={{marginTop:8,padding:"6px 10px",background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,fontSize:12,color:"#dc2626"}}>저장 실패: {saveErr}</div>}
+        <div style={{fontSize:15,fontWeight:900,letterSpacing:-0.5}}>🦴 골격계 해부학</div>
+        <div style={{fontSize:10,color:"#9ca3af",letterSpacing:1.5,marginTop:1}}>SKELETAL ANATOMY · {bones.length}개 단어</div>
       </div>
       <div style={{maxWidth:580,margin:"0 auto",padding:"18px 14px"}}>
         {mode==="classify"&&<ClassificationMode bones={bones}/>}
         {mode==="compare"&&<ComparisonMode bones={bones}/>}
-        {mode==="flashcard"&&<FlashcardMode bones={bones}/>}
+        {mode==="flashcard"&&<FlashcardMode bones={bones} images={images} setImages={setImages}/>}
         {mode==="quiz"&&<QuizMode bones={bones} onWrong={addWrong}/>}
         {mode==="stats"&&<StatsMode bones={bones} stats={stats} onClear={clearStats}/>}
-        {mode==="manage"&&<WordManager bones={bones} onSave={handleSave} saving={saving}/>}
+        {mode==="manage"&&<WordManager bones={bones} setBones={setBones}/>}
       </div>
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#fff",borderTop:"1px solid #e5e7eb",display:"flex",zIndex:50,boxShadow:"0 -2px 12px rgba(0,0,0,0.06)"}}>
         {MODES.map(m=>(
