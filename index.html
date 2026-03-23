@@ -538,7 +538,7 @@ function App(){
     ghGet(token).then(data=>{
       if(data){
         const content=JSON.parse(decodeURIComponent(escape(atob(data.content.replace(/\n/g,"")))));
-        setBones(content);
+        setBones(content.length ? content : DEFAULT_BONES);
         setSha(data.sha);
       }
     }).catch(()=>{}).finally(()=>setLoading(false));
