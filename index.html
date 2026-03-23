@@ -76,6 +76,10 @@ function loadBones(){try{const r=localStorage.getItem("ab3");if(r)return JSON.pa
 function saveBones(b){try{localStorage.setItem("ab3",JSON.stringify(b));}catch{}}
 function loadStats(){try{const r=localStorage.getItem("as2");if(r)return JSON.parse(r);}catch{}return {};}
 function saveStats(s){try{localStorage.setItem("as2",JSON.stringify(s));}catch{}}
+function loadImages(){try{const r=localStorage.getItem("fc_imgs");if(r)return JSON.parse(r);}catch{}return {};}
+function saveImages(v){try{localStorage.setItem("fc_imgs",JSON.stringify(v));}catch{}}
+function loadImgPos(){try{const r=localStorage.getItem("fc_pos");if(r)return r;}catch{}return "back";}
+function saveImgPos(v){try{localStorage.setItem("fc_pos",v);}catch{}}
 
 function Tag({label,color,small}){
   return <span style={{display:"inline-block",padding:small?"2px 8px":"3px 10px",borderRadius:20,fontSize:small?10:11,fontWeight:700,background:color+"22",color,border:`1px solid ${color}44`}}>{label}</span>;
@@ -190,35 +194,85 @@ function ComparisonMode({bones}){
 }
 
 // ── FLASHCARD ──
-function FlashcardMode({bones}){
+function FlashcardMode({bones,images,setImages}){
   const [cards]=useState(()=>shuffle(bones));
   const [idx,setIdx]=useState(0);
   const [flipped,setFlipped]=useState(false);
   const [dir,setDir]=useState("k2l");
+  const [imgPos,setImgPos]=useState(()=>loadImgPos());
+  const [showSettings,setShowSettings]=useState(false);
+  const fileRef=useRef(null);
   const card=cards[idx%cards.length];
+  const cardImg=images[card.id]||null;
+
+  function handleImgUpload(e){
+    const file=e.target.files[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{const updated={...images,[card.id]:ev.target.result};setImages(updated);saveImages(updated);};
+    reader.readAsDataURL(file);
+    e.target.value="";
+  }
+  function removeImg(){const updated={...images};delete updated[card.id];setImages(updated);saveImages(updated);}
+  function changePos(p){setImgPos(p);saveImgPos(p);}
+
+  const showImgFront=cardImg&&(imgPos==="front"||imgPos==="both");
+  const showImgBack=cardImg&&(imgPos==="back"||imgPos==="both");
+
   return(
     <div style={{maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
-      <div style={{display:"flex",gap:6,width:"100%"}}>
+      <div style={{display:"flex",gap:6,width:"100%",alignItems:"center"}}>
         {[["k2l","한 → 라틴"],["l2k","라틴 → 한"]].map(([d,l])=>(
           <button key={d} onClick={()=>setDir(d)} style={{flex:1,padding:11,borderRadius:12,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:dir===d?"#111827":"#f3f4f6",color:dir===d?"#fff":"#6b7280"}}>{l}</button>
         ))}
+        <button onClick={()=>setShowSettings(s=>!s)} style={{padding:"10px 12px",borderRadius:12,border:`1px solid ${showSettings?"#111827":"#e5e7eb"}`,background:showSettings?"#111827":"#fff",color:showSettings?"#fff":"#6b7280",cursor:"pointer",fontSize:14,flexShrink:0}}>⚙️</button>
       </div>
-      <div style={{width:"100%",fontSize:12,color:"#9ca3af"}}>{(idx%cards.length)+1} / {cards.length}</div>
+
+      {showSettings&&(
+        <div style={{width:"100%",padding:16,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:12}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#374151",marginBottom:10,letterSpacing:1}}>🖼 이미지 표시 위치</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[["none","없음"],["front","앞면"],["back","뒷면"],["both","앞+뒤"]].map(([v,l])=>(
+              <button key={v} onClick={()=>changePos(v)} style={{padding:"7px 14px",borderRadius:20,border:`1px solid ${imgPos===v?"#111827":"#e5e7eb"}`,background:imgPos===v?"#111827":"#fff",color:imgPos===v?"#fff":"#6b7280",cursor:"pointer",fontSize:12,fontWeight:600}}>{l}</button>
+            ))}
+          </div>
+          <div style={{fontSize:11,color:"#9ca3af",marginTop:8}}>카드 하단 버튼으로 현재 카드에 이미지를 추가할 수 있어요.</div>
+        </div>
+      )}
+
+      <div style={{width:"100%",fontSize:12,color:"#9ca3af",display:"flex",justifyContent:"space-between"}}>
+        <span>{(idx%cards.length)+1} / {cards.length}</span>
+        {cardImg&&<span style={{color:"#0ea5e9"}}>🖼 이미지 있음</span>}
+      </div>
       <div style={{width:"100%",height:3,background:"#f3f4f6",borderRadius:2}}>
         <div style={{width:`${(((idx%cards.length)+1)/cards.length)*100}%`,height:"100%",background:"#111827",borderRadius:2,transition:"width 0.3s"}}/>
       </div>
+
       <div onClick={()=>setFlipped(f=>!f)} style={{width:"100%",minHeight:240,padding:24,borderRadius:16,cursor:"pointer",background:flipped?`linear-gradient(135deg,${CAT_COLOR[card.cat]}10,#fff)`:"#f9fafb",border:`1.5px solid ${flipped?CAT_COLOR[card.cat]+"55":"#e5e7eb"}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,textAlign:"center",userSelect:"none",transition:"all 0.22s"}}>
         <Tag label={card.cat} color={CAT_COLOR[card.cat]}/>
         {!flipped?<>
+          {showImgFront&&<img src={cardImg} alt="" style={{maxWidth:"100%",maxHeight:140,borderRadius:10,objectFit:"contain"}}/>}
           <div style={{fontSize:dir==="k2l"?36:22,fontWeight:800,color:"#111827",fontStyle:dir==="l2k"?"italic":"normal",fontFamily:dir==="l2k"?"Georgia,serif":"inherit",lineHeight:1.3}}>{dir==="k2l"?card.k:card.l}</div>
           <div style={{fontSize:12,color:"#9ca3af",marginTop:4}}>탭하여 뒤집기</div>
         </>:<>
+          {showImgBack&&<img src={cardImg} alt="" style={{maxWidth:"100%",maxHeight:140,borderRadius:10,objectFit:"contain"}}/>}
           <div style={{fontSize:12,color:"#9ca3af"}}>{dir==="k2l"?card.k:card.l}</div>
           <div style={{fontSize:dir==="l2k"?32:18,fontWeight:800,color:CAT_COLOR[card.cat],fontStyle:dir==="k2l"?"italic":"normal",fontFamily:dir==="k2l"?"Georgia,serif":"inherit",lineHeight:1.3}}>{dir==="k2l"?card.l:card.k}</div>
           {card.tip&&<div style={{marginTop:4,padding:"9px 12px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:10,fontSize:12,color:"#92400e",maxWidth:340,textAlign:"left"}}>💡 {card.tip}</div>}
           {card.story&&<div style={{padding:"9px 12px",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,fontSize:12,color:"#166534",maxWidth:340,textAlign:"left"}}>📖 {card.story}</div>}
         </>}
       </div>
+
+      {imgPos!=="none"&&(
+        <div style={{display:"flex",gap:8,width:"100%"}}>
+          <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImgUpload}/>
+          <button onClick={()=>fileRef.current.click()} style={{flex:1,padding:"10px",borderRadius:10,border:"1px dashed #0ea5e9",background:"#f0f9ff",color:"#0369a1",cursor:"pointer",fontSize:13,fontWeight:600}}>
+            {cardImg?"🔄 이미지 교체":"📷 이미지 추가"}
+          </button>
+          {cardImg&&<button onClick={removeImg} style={{padding:"10px 14px",borderRadius:10,border:"1px solid #fca5a5",background:"#fff5f5",color:"#dc2626",cursor:"pointer",fontSize:13}}>🗑</button>}
+        </div>
+      )}
+
       <div style={{display:"flex",gap:10,width:"100%"}}>
         <button onClick={()=>{setIdx(i=>Math.max(0,i-1));setFlipped(false);}} disabled={idx===0} style={{flex:1,padding:14,borderRadius:12,border:"1px solid #e5e7eb",background:"#fff",color:idx===0?"#d1d5db":"#374151",cursor:idx===0?"default":"pointer",fontSize:14}}>← 이전</button>
         <button onClick={()=>{setIdx(i=>i+1);setFlipped(false);}} style={{flex:2,padding:14,borderRadius:12,border:"none",background:"#111827",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>다음 →</button>
@@ -555,6 +609,7 @@ function WordManager({bones,setBones}){
 function App(){
   const [bones,setBones]=useState(()=>loadBones());
   const [stats,setStats]=useState(()=>loadStats());
+  const [images,setImages]=useState(()=>loadImages());
   const [mode,setMode]=useState("classify");
   const addWrong=useCallback((id)=>{setStats(s=>{const n={...s,[id]:(s[id]||0)+1};saveStats(n);return n;});},[]);
   const clearStats=()=>{setStats({});saveStats({});};
@@ -576,7 +631,7 @@ function App(){
       <div style={{maxWidth:580,margin:"0 auto",padding:"18px 14px"}}>
         {mode==="classify"&&<ClassificationMode bones={bones}/>}
         {mode==="compare"&&<ComparisonMode bones={bones}/>}
-        {mode==="flashcard"&&<FlashcardMode bones={bones}/>}
+        {mode==="flashcard"&&<FlashcardMode bones={bones} images={images} setImages={setImages}/>}
         {mode==="quiz"&&<QuizMode bones={bones} onWrong={addWrong}/>}
         {mode==="stats"&&<StatsMode bones={bones} stats={stats} onClear={clearStats}/>}
         {mode==="manage"&&<WordManager bones={bones} setBones={setBones}/>}
