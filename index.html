@@ -7,650 +7,695 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; background: #f8fafc; color: #111827; }
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 2px; }
-    @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
-    .shake { animation: shake 0.3s ease; }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Noto Sans KR','Apple SD Gothic Neo',sans-serif;background:#f8fafc;color:#111827;}
+    ::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:#e5e7eb;border-radius:2px;}
+    @keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+    @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+    .shake{animation:shake 0.3s ease;}.fadeIn{animation:fadeIn 0.2s ease;}
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useCallback, useRef } = React;
+const {useState,useEffect,useCallback,useRef}=React;
 
-const DEFAULT_BONES = [
-  { id:"cranium",     k:"두개골",   l:"Cranium",           axial:true,  cat:"두개골", desc:"뇌를 보호하는 8개의 뼈로 구성", tip:"전두·정·측측·후·접·사 = 8개!", story:"두개(頭蓋) = 머리 뚜껑. 뇌라는 귀한 물건을 담은 딱딱한 뚜껑 상자를 상상해봐!" },
-  { id:"mandible",    k:"하악골",   l:"Mandible",          axial:true,  cat:"두개골", desc:"아래턱뼈. 얼굴뼈 중 유일하게 움직이는 뼈", tip:"하(下)=아래! 유일하게 움직이는 얼굴뼈", story:"하악(下顎) = 아래 턱. '하악하악' 씹을 때 움직이는 유일한 얼굴뼈!" },
-  { id:"cervical",    k:"경추",     l:"Cervical (C1~C7)",  axial:true,  cat:"척주",   desc:"목뼈 7개. C1=환추, C2=축추", tip:"경=목, 7개. C1환추·C2축추 필수!", story:"경(頸)=목. 기린 목처럼 긴 목을 7개 뼈가 지탱. C1은 고리(환추), C2는 축처럼 회전!" },
-  { id:"thoracic",    k:"흉추",     l:"Thoracic (T1~T12)", axial:true,  cat:"척주",   desc:"등뼈 12개. 늑골과 관절", tip:"흉=가슴, 12개 = 늑골 12쌍과 일치!", story:"흉(胸)=가슴. 갈비뼈 12쌍이 모두 흉추에 붙어 있어. 12개 갈비 = 12개 흉추, 딱 맞아!" },
-  { id:"lumbar",      k:"요추",     l:"Lumbar (L1~L5)",    axial:true,  cat:"척주",   desc:"허리뼈 5개. 체중 부하 최대", tip:"요=허리, 5개. 디스크 호발 부위", story:"요(腰)=허리. 5개뿐이지만 온몸 체중을 받는 장사. 허리 디스크는 거의 여기서!" },
-  { id:"sacrum",      k:"천골",     l:"Sacrum",            axial:true,  cat:"척주",   desc:"5개 천추 융합. 골반 후벽 형성", tip:"5개 융합 = 역삼각형", story:"천(薦) = 신성하다. 5개 뼈가 하나로 합쳐진 역삼각형 쐐기돌. 골반을 뒤에서 단단히 잠근다!" },
-  { id:"coccyx",      k:"미골",     l:"Coccyx",            axial:true,  cat:"척주",   desc:"꼬리뼈. 3~4개 미추 융합", tip:"미=꼬리. 퇴화된 꼬리의 흔적!", story:"미(尾)=꼬리. 인간이 원숭이였을 때의 흔적! 넘어지면 엄청 아픈 바로 그 꼬리뼈." },
-  { id:"sternum",     k:"흉골",     l:"Sternum",           axial:true,  cat:"흉곽",   desc:"복장뼈. 흉골병+흉골체+검상돌기. CPR 부위", tip:"CPR 할 때 누르는 뼈! 병·체·검상", story:"CPR 할 때 두 손으로 힘차게 누르는 바로 그 뼈! 위에서 병(자루)·체(몸통)·검상(칼끝) 순서." },
-  { id:"ribs",        k:"늑골",     l:"Ribs (12쌍)",       axial:true,  cat:"흉곽",   desc:"갈비뼈 12쌍. 진늑골(1~7), 가늑골(8~10), 부유늑골(11~12)", tip:"진(7)+가(3)+부유(2) = 12쌍!", story:"진짜(1~7)는 흉골에 직접 붙고, 가짜(8~10)는 연골로 연결, 부유(11~12)는 둥둥 떠다녀!" },
-  { id:"clavicle",    k:"쇄골",     l:"Clavicle",          axial:false, cat:"상지대", desc:"빗장뼈. S자형. 낙상 시 골절 多", tip:"S자 모양! 손 짚고 넘어지면 → 쇄골 골절", story:"쇄(鎖)=자물쇠. S자 모양의 빗장처럼 어깨를 잠근다. 넘어질 때 손을 짚으면 충격이 전달돼 골절!" },
-  { id:"scapula",     k:"견갑골",   l:"Scapula",           axial:false, cat:"상지대", desc:"어깨뼈. 삼각형. 17개 근육 부착", tip:"삼각형! 17개 근육의 집합소", story:"견갑(肩胛)=어깨 등판. 날개뼈라고도 불러. 삼각형 모양에 무려 17개 근육이 붙는 근육 허브!" },
-  { id:"humerus",     k:"상완골",   l:"Humerus",           axial:false, cat:"상지",   desc:"위팔뼈. 팔에서 가장 큰 뼈", tip:"상(上)완=위팔. 팔에서 최장!", story:"상완(上腕)=위팔. '팔씨름할 때 힘주는 바로 그 부위'의 뼈. 팔 뼈 중 가장 길고 굵어!" },
-  { id:"radius",      k:"요골",     l:"Radius",            axial:false, cat:"상지",   desc:"노뼈. 아래팔 엄지쪽(외측). 콜레스 골절 多", tip:"요=엄지쪽! 콜레스 골절 부위", story:"요(橈)=노. 배의 노처럼 팔 회전의 중심! 엄지를 들어올리면 바깥쪽 뼈 = 요골. 콜레스 골절 단골!" },
-  { id:"ulna",        k:"척골",     l:"Ulna",              axial:false, cat:"상지",   desc:"자뼈. 아래팔 새끼손가락쪽. 주두 형성", tip:"척=새끼쪽! 주두=팔꿈치 뾰족한 부분", story:"척(尺)=자(ruler). 새끼손가락 쪽의 길쭉한 뼈. 팔꿈치 뾰족한 주두가 바로 척골의 끝!" },
-  { id:"carpals",     k:"수근골",   l:"Carpals (8개)",     axial:false, cat:"상지",   desc:"손목뼈 8개. 근위열 4개 + 원위열 4개", tip:"주월삼두 / 대소두유 = 8개!", story:"손목을 꺾을 때 느껴지는 작은 뼈들이 8개! 주상·월상·삼각·두상 / 대능형·소능형·두상·유구." },
-  { id:"metacarpals", k:"중수골",   l:"Metacarpals (5개)", axial:false, cat:"상지",   desc:"손허리뼈 5개. 손바닥 형성", tip:"손바닥의 5개 뼈!", story:"손바닥을 펼치면 보이는 5개의 뼈대. 주먹 쥐면 너클로 볼록 튀어나오는 바로 그 뼈!" },
-  { id:"phalanges_h", k:"지골(손)", l:"Phalanges (손)",    axial:false, cat:"상지",   desc:"손가락뼈 14개. 엄지=2마디, 나머지=3마디", tip:"엄지 2+나머지 4×3=14개!", story:"엄지는 2마디(근위·원위), 나머지 손가락은 3마디(근위·중위·원위). 2 + 4×3 = 14!" },
-  { id:"ilium",       k:"장골",     l:"Ilium",             axial:false, cat:"하지대", desc:"엉덩뼈. 골반 최대·최광. ASIS 촉지 가능", tip:"장=크고 넓다! ASIS 직접 만져보기", story:"장(腸)=창자 옆 뼈. 골반에서 가장 넓고 큰 날개 모양. 허리 양쪽 튀어나온 ASIS를 직접 만져봐!" },
-  { id:"ischium",     k:"좌골",     l:"Ischium",           axial:false, cat:"하지대", desc:"궁둥뼈. 앉을 때 체중이 실리는 뼈", tip:"좌(坐)=앉다! 의자에 닿는 뼈", story:"좌(坐)=앉다! 의자에 앉으면 딱딱하게 닿는 그 부분이 바로 좌골. 오래 앉으면 아픈 이유!" },
-  { id:"pubis",       k:"치골",     l:"Pubis",             axial:false, cat:"하지대", desc:"두덩뼈. 골반 전면. 분만 시 이완", tip:"골반 앞 연결! 분만 시 산도 확장", story:"골반 앞쪽 가운데를 연결하는 뼈. 출산 때 이 연결부가 느슨해져 아기가 나올 공간을 만들어줘!" },
-  { id:"femur",       k:"대퇴골",   l:"Femur",             axial:false, cat:"하지",   desc:"넓적다리뼈. 인체 최장·최강", tip:"인체 최장·최강! 체중의 5배 견딤", story:"인체에서 가장 길고 강한 뼈! 체중의 5배 힘을 견뎌. 넓적다리를 감싸는 단단한 기둥을 상상해봐." },
-  { id:"patella",     k:"슬개골",   l:"Patella",           axial:false, cat:"하지",   desc:"무릎뼈. 인체 최대 종자골", tip:"인체 최대 종자골! 힘줄 속에 박힘", story:"슬(膝)=무릎. 씨앗처럼 힘줄 속에 박혀있는 뼈. 무릎 꿇을 때 딱딱하게 닿는 바로 그 뼈!" },
-  { id:"tibia",       k:"경골",     l:"Tibia",             axial:false, cat:"하지",   desc:"정강뼈. 하퇴 내측. 체중 지탱 주역", tip:"내측+체중 지탱! 앞에서 만져짐", story:"경(脛)=정강이. 하퇴의 굵고 내측에 있는 주역! 앞에서 만지면 딱딱한 뼈가 느껴지는 그 뼈." },
-  { id:"fibula",      k:"비골",     l:"Fibula",            axial:false, cat:"하지",   desc:"종아리뼈. 하퇴 외측의 가는 뼈", tip:"외측+가는 뼈! 발목 삐면 → 비골 골절", story:"비(腓)=종아리. 경골 옆에서 보조하는 가는 뼈. 발목 삐끗! 하면 외측 비골 골절이 단골." },
-  { id:"tarsals",     k:"족근골",   l:"Tarsals (7개)",     axial:false, cat:"하지",   desc:"발목뼈 7개. 거골·종골·주상골 등", tip:"거·종·주·입·설설설 = 7개!", story:"발목을 이루는 7개 블록! 그 중 종골(뒤꿈치뼈)이 가장 크고, 거골이 경골과 맞닿아 충격 흡수!" },
-  { id:"metatarsals", k:"중족골",   l:"Metatarsals (5개)", axial:false, cat:"하지",   desc:"발허리뼈 5개. 발바닥 형성", tip:"발바닥 5개 뼈!", story:"발바닥을 이루는 5개의 뼈. 행군이나 달리기 중 피로 골절이 잘 생기는 곳이 바로 여기!" },
-  { id:"phalanges_f", k:"지골(발)", l:"Phalanges (발)",    axial:false, cat:"하지",   desc:"발가락뼈 14개. 보행에 특화", tip:"손과 동일 14개!", story:"손가락과 똑같이 14개! 엄지 2마디 + 나머지 4×3 = 14. 걷고 뛸 때 지면을 밀어내는 역할." },
+const CLOUDINARY_CLOUD='dd52lyfox';
+const CLOUDINARY_PRESET='anatomy_preset';
+
+const DEFAULT_CATEGORIES=[
+  {name:'두개골',colorHex:'#6366F1',axial:true,order:0},{name:'척주',colorHex:'#0EA5E9',axial:true,order:1},
+  {name:'흉곽',colorHex:'#8B5CF6',axial:true,order:2},{name:'상지대',colorHex:'#F59E0B',axial:false,order:3},
+  {name:'상지',colorHex:'#F97316',axial:false,order:4},{name:'하지대',colorHex:'#EC4899',axial:false,order:5},
+  {name:'하지',colorHex:'#EF4444',axial:false,order:6},
+];
+const COLOR_PALETTE=['#6366F1','#0EA5E9','#8B5CF6','#F59E0B','#F97316','#EC4899','#EF4444','#10B981','#14B8A6','#F43F5E','#84CC16','#06B6D4','#A855F7','#FB923C','#22C55E','#64748B'];
+const DEFAULT_BONES=[
+  {id:'cranium',k:'두개골',l:'Cranium',axial:true,cat:'두개골',desc:'뇌를 보호하는 8개의 뼈로 구성',tip:'전두·정·측측·후·접·사 = 8개!',story:'두개(頭蓋) = 머리 뚜껑. 뇌라는 귀한 물건을 담은 딱딱한 뚜껑 상자를 상상해봐!'},
+  {id:'mandible',k:'하악골',l:'Mandible',axial:true,cat:'두개골',desc:'아래턱뼈. 얼굴뼈 중 유일하게 움직이는 뼈',tip:'하(下)=아래! 유일하게 움직이는 얼굴뼈',story:'하악(下顎) = 아래 턱. 하악하악 씹을 때 움직이는 유일한 얼굴뼈!'},
+  {id:'cervical',k:'경추',l:'Cervical (C1~C7)',axial:true,cat:'척주',desc:'목뼈 7개. C1=환추, C2=축추',tip:'경=목, 7개. C1환추·C2축추 필수!',story:'경(頸)=목. 기린 목처럼 긴 목을 7개 뼈가 지탱.'},
+  {id:'thoracic',k:'흉추',l:'Thoracic (T1~T12)',axial:true,cat:'척주',desc:'등뼈 12개. 늑골과 관절',tip:'흉=가슴, 12개 = 늑골 12쌍과 일치!',story:'흉(胸)=가슴. 갈비뼈 12쌍이 모두 흉추에 붙어 있어.'},
+  {id:'lumbar',k:'요추',l:'Lumbar (L1~L5)',axial:true,cat:'척주',desc:'허리뼈 5개. 체중 부하 최대',tip:'요=허리, 5개. 디스크 호발 부위',story:'요(腰)=허리. 5개뿐이지만 온몸 체중을 받는 장사.'},
+  {id:'sacrum',k:'천골',l:'Sacrum',axial:true,cat:'척주',desc:'5개 천추 융합. 골반 후벽 형성',tip:'5개 융합 = 역삼각형',story:'천(薦) = 신성하다. 5개 뼈가 하나로 합쳐진 역삼각형 쐐기돌.'},
+  {id:'coccyx',k:'미골',l:'Coccyx',axial:true,cat:'척주',desc:'꼬리뼈. 3~4개 미추 융합',tip:'미=꼬리. 퇴화된 꼬리의 흔적!',story:'미(尾)=꼬리. 인간이 원숭이였을 때의 흔적!'},
+  {id:'sternum',k:'흉골',l:'Sternum',axial:true,cat:'흉곽',desc:'복장뼈. 흉골병+흉골체+검상돌기. CPR 부위',tip:'CPR 할 때 누르는 뼈! 병·체·검상',story:'CPR 할 때 두 손으로 힘차게 누르는 바로 그 뼈!'},
+  {id:'ribs',k:'늑골',l:'Ribs (12쌍)',axial:true,cat:'흉곽',desc:'갈비뼈 12쌍. 진늑골(1~7), 가늑골(8~10), 부유늑골(11~12)',tip:'진(7)+가(3)+부유(2) = 12쌍!',story:'진짜(1~7)는 흉골에 직접 붙고, 가짜(8~10)는 연골로 연결!'},
+  {id:'clavicle',k:'쇄골',l:'Clavicle',axial:false,cat:'상지대',desc:'빗장뼈. S자형. 낙상 시 골절 多',tip:'S자 모양! 손 짚고 넘어지면 → 쇄골 골절',story:'쇄(鎖)=자물쇠. S자 모양의 빗장처럼 어깨를 잠근다.'},
+  {id:'scapula',k:'견갑골',l:'Scapula',axial:false,cat:'상지대',desc:'어깨뼈. 삼각형. 17개 근육 부착',tip:'삼각형! 17개 근육의 집합소',story:'견갑(肩胛)=어깨 등판. 날개뼈라고도 불러.'},
+  {id:'humerus',k:'상완골',l:'Humerus',axial:false,cat:'상지',desc:'위팔뼈. 팔에서 가장 큰 뼈',tip:'상(上)완=위팔. 팔에서 최장!',story:'상완(上腕)=위팔. 팔 뼈 중 가장 길고 굵어!'},
+  {id:'radius',k:'요골',l:'Radius',axial:false,cat:'상지',desc:'노뼈. 아래팔 엄지쪽(외측). 콜레스 골절 多',tip:'요=엄지쪽! 콜레스 골절 부위',story:'요(橈)=노. 배의 노처럼 팔 회전의 중심!'},
+  {id:'ulna',k:'척골',l:'Ulna',axial:false,cat:'상지',desc:'자뼈. 아래팔 새끼손가락쪽. 주두 형성',tip:'척=새끼쪽! 주두=팔꿈치 뾰족한 부분',story:'척(尺)=자(ruler). 새끼손가락 쪽의 길쭉한 뼈.'},
+  {id:'carpals',k:'수근골',l:'Carpals (8개)',axial:false,cat:'상지',desc:'손목뼈 8개. 근위열 4개 + 원위열 4개',tip:'주월삼두 / 대소두유 = 8개!',story:'손목을 꺾을 때 느껴지는 작은 뼈들이 8개!'},
+  {id:'metacarpals',k:'중수골',l:'Metacarpals (5개)',axial:false,cat:'상지',desc:'손허리뼈 5개. 손바닥 형성',tip:'손바닥의 5개 뼈!',story:'손바닥을 펼치면 보이는 5개의 뼈대.'},
+  {id:'phalanges_h',k:'지골(손)',l:'Phalanges (손)',axial:false,cat:'상지',desc:'손가락뼈 14개. 엄지=2마디, 나머지=3마디',tip:'엄지 2+나머지 4×3=14개!',story:'엄지는 2마디, 나머지 손가락은 3마디.'},
+  {id:'ilium',k:'장골',l:'Ilium',axial:false,cat:'하지대',desc:'엉덩뼈. 골반 최대·최광. ASIS 촉지 가능',tip:'장=크고 넓다! ASIS 직접 만져보기',story:'장(腸)=창자 옆 뼈. 골반에서 가장 넓고 큰 날개 모양.'},
+  {id:'ischium',k:'좌골',l:'Ischium',axial:false,cat:'하지대',desc:'궁둥뼈. 앉을 때 체중이 실리는 뼈',tip:'좌(坐)=앉다! 의자에 닿는 뼈',story:'좌(坐)=앉다! 의자에 앉으면 딱딱하게 닿는 그 부분이 바로 좌골.'},
+  {id:'pubis',k:'치골',l:'Pubis',axial:false,cat:'하지대',desc:'두덩뼈. 골반 전면. 분만 시 이완',tip:'골반 앞 연결! 분만 시 산도 확장',story:'골반 앞쪽 가운데를 연결하는 뼈.'},
+  {id:'femur',k:'대퇴골',l:'Femur',axial:false,cat:'하지',desc:'넓적다리뼈. 인체 최장·최강',tip:'인체 최장·최강! 체중의 5배 견딤',story:'인체에서 가장 길고 강한 뼈!'},
+  {id:'patella',k:'슬개골',l:'Patella',axial:false,cat:'하지',desc:'무릎뼈. 인체 최대 종자골',tip:'인체 최대 종자골! 힘줄 속에 박힘',story:'슬(膝)=무릎. 씨앗처럼 힘줄 속에 박혀있는 뼈.'},
+  {id:'tibia',k:'경골',l:'Tibia',axial:false,cat:'하지',desc:'정강뼈. 하퇴 내측. 체중 지탱 주역',tip:'내측+체중 지탱! 앞에서 만져짐',story:'경(脛)=정강이. 하퇴의 굵고 내측에 있는 주역!'},
+  {id:'fibula',k:'비골',l:'Fibula',axial:false,cat:'하지',desc:'종아리뼈. 하퇴 외측의 가는 뼈',tip:'외측+가는 뼈! 발목 삐면 → 비골 골절',story:'비(腓)=종아리. 경골 옆에서 보조하는 가는 뼈.'},
+  {id:'tarsals',k:'족근골',l:'Tarsals (7개)',axial:false,cat:'하지',desc:'발목뼈 7개. 거골·종골·주상골 등',tip:'거·종·주·입·설설설 = 7개!',story:'발목을 이루는 7개 블록!'},
+  {id:'metatarsals',k:'중족골',l:'Metatarsals (5개)',axial:false,cat:'하지',desc:'발허리뼈 5개. 발바닥 형성',tip:'발바닥 5개 뼈!',story:'발바닥을 이루는 5개의 뼈.'},
+  {id:'phalanges_f',k:'지골(발)',l:'Phalanges (발)',axial:false,cat:'하지',desc:'발가락뼈 14개. 보행에 특화',tip:'손과 동일 14개!',story:'손가락과 똑같이 14개!'},
+];
+const PAIRS=[
+  {a:'radius',b:'ulna',note:'아래팔 두 뼈 — 위치로 구분'},{a:'tibia',b:'fibula',note:'하퇴 두 뼈 — 굵기·위치로 구분'},
+  {a:'carpals',b:'metacarpals',note:'손목 vs 손바닥'},{a:'tarsals',b:'metatarsals',note:'발목 vs 발바닥'},
+  {a:'cranium',b:'mandible',note:'두개골 — 고정 vs 움직임'},{a:'ilium',b:'ischium',note:'골반 — 위 vs 뒤아래'},
+  {a:'ischium',b:'pubis',note:'골반 — 앉을 때 vs 앞쪽'},{a:'cervical',b:'thoracic',note:'척추 — 목 vs 등'},
+  {a:'thoracic',b:'lumbar',note:'척추 — 등 vs 허리'},
 ];
 
-const PAIRS = [
-  { a:"radius",    b:"ulna",        note:"아래팔 두 뼈 — 위치로 구분" },
-  { a:"tibia",     b:"fibula",      note:"하퇴 두 뼈 — 굵기·위치로 구분" },
-  { a:"carpals",   b:"metacarpals", note:"손목 vs 손바닥" },
-  { a:"tarsals",   b:"metatarsals", note:"발목 vs 발바닥" },
-  { a:"cranium",   b:"mandible",    note:"두개골 — 고정 vs 움직임" },
-  { a:"ilium",     b:"ischium",     note:"골반 — 위 vs 뒤아래" },
-  { a:"ischium",   b:"pubis",       note:"골반 — 앉을 때 vs 앞쪽" },
-  { a:"cervical",  b:"thoracic",    note:"척추 — 목 vs 등" },
-  { a:"thoracic",  b:"lumbar",      note:"척추 — 등 vs 허리" },
-];
+function shuffle(a){const r=[...a];for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]];}return r;}
+function norm(s){return s.trim().toLowerCase().replace(/\s+/g,' ');}
+function catColor(cats,name){return(cats.find(c=>c.name===name)||{colorHex:'#6366F1'}).colorHex;}
+function catAxial(cats,name){const c=cats.find(c=>c.name===name);return c?c.axial:true;}
 
-const CAT_COLOR = {
-  두개골:"#6366f1", 척주:"#0ea5e9", 흉곽:"#8b5cf6",
-  상지대:"#f59e0b", 상지:"#f97316", 하지대:"#ec4899", 하지:"#ef4444",
-};
+// ── FIREBASE ──
+let _db=null,_auth=null;
+function initFb(cfg){
+  try{if(!firebase.apps.length)firebase.initializeApp(cfg);_db=firebase.firestore();_auth=firebase.auth();
+    _db.enablePersistence().catch(()=>{});return true;}catch{return false;}
+}
+function getFbCfg(){try{return JSON.parse(localStorage.getItem('fb_cfg'));}catch{return null;}}
+async function dbSave(uid,data){try{await _db.collection('users').doc(uid).set(data,{merge:true});}catch{}}
+async function dbLoad(uid){try{const d=await _db.collection('users').doc(uid).get();return d.exists?d.data():{};}catch{return{};}}
 
-function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-function normalize(s){return s.trim().toLowerCase().replace(/\s+/g," ");}
-
-function loadBones(){try{const r=localStorage.getItem("ab3");if(r)return JSON.parse(r);}catch{}return DEFAULT_BONES;}
-function saveBones(b){try{localStorage.setItem("ab3",JSON.stringify(b));}catch{}}
-function loadStats(){try{const r=localStorage.getItem("as2");if(r)return JSON.parse(r);}catch{}return {};}
-function saveStats(s){try{localStorage.setItem("as2",JSON.stringify(s));}catch{}}
-function loadImages(){try{const r=localStorage.getItem("fc_imgs");if(r)return JSON.parse(r);}catch{}return {};}
-function saveImages(v){try{localStorage.setItem("fc_imgs",JSON.stringify(v));}catch{}}
-function loadImgPos(){try{const r=localStorage.getItem("fc_pos");if(r)return r;}catch{}return "back";}
-function saveImgPos(v){try{localStorage.setItem("fc_pos",v);}catch{}}
-
-function Tag({label,color,small}){
-  return <span style={{display:"inline-block",padding:small?"2px 8px":"3px 10px",borderRadius:20,fontSize:small?10:11,fontWeight:700,background:color+"22",color,border:`1px solid ${color}44`}}>{label}</span>;
+async function uploadCloudinary(uid,boneId,file){
+  const fd=new FormData();fd.append('file',file);fd.append('upload_preset',CLOUDINARY_PRESET);fd.append('public_id',`${uid}_${boneId}`);
+  const r=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,{method:'POST',body:fd});
+  const j=await r.json();return j.secure_url||null;
 }
 
-// ── SHARED MODAL ──
-function Modal({bone,onClose}){
+// ── UI HELPERS ──
+function Tag({label,color,small}){
+  return <span style={{display:'inline-block',padding:small?'2px 8px':'3px 10px',borderRadius:20,fontSize:small?10:11,fontWeight:700,background:color+'22',color,border:`1px solid ${color}44`}}>{label}</span>;
+}
+function IB({text,bg,bd,tc}){return <div style={{padding:'10px 12px',background:bg,border:`1px solid ${bd}`,borderRadius:10,fontSize:13,color:tc,lineHeight:1.7}}>{text}</div>;}
+const INP={width:'100%',padding:'10px 12px',border:'1px solid #e5e7eb',borderRadius:10,fontSize:14,fontFamily:'inherit',outline:'none',background:'#fff',color:'#111827'};
+function FL({t}){return <div style={{fontSize:11,fontWeight:700,color:'#6b7280',letterSpacing:1,marginBottom:5}}>{t}</div>;}
+
+// ── BONE DETAIL MODAL ──
+function Modal({bone,cats,onClose}){
   if(!bone)return null;
-  const c=CAT_COLOR[bone.cat];
+  const c=catColor(cats,bone.cat);
   return(
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:520,background:"#fff",borderRadius:"20px 20px 0 0",padding:"8px 22px 40px",boxShadow:"0 -8px 40px rgba(0,0,0,0.18)",animation:"slideUp 0.22s ease",maxHeight:"90vh",overflowY:"auto"}}>
-        <div style={{width:36,height:4,background:"#e5e7eb",borderRadius:2,margin:"12px auto 20px"}}/>
-        <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-          <Tag label={bone.axial?"축뼈대":"팔다리뼈대"} color={bone.axial?"#0ea5e9":"#f97316"}/>
+    <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:520,background:'#fff',borderRadius:'20px 20px 0 0',padding:'8px 22px 40px',animation:'slideUp .22s ease',maxHeight:'90vh',overflowY:'auto'}}>
+        <div style={{width:36,height:4,background:'#e5e7eb',borderRadius:2,margin:'12px auto 18px'}}/>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
+          <Tag label={bone.axial?'축뼈대':'팔다리뼈대'} color={bone.axial?'#0ea5e9':'#f97316'}/>
           <Tag label={bone.cat} color={c}/>
         </div>
-        <div style={{fontSize:30,fontWeight:900,color:"#111827",letterSpacing:-0.5}}>{bone.k}</div>
-        <div style={{fontSize:13,color:"#9ca3af",fontStyle:"italic",fontFamily:"Georgia,serif",margin:"4px 0 14px"}}>{bone.l}</div>
-        {bone.desc&&<div style={{fontSize:14,color:"#374151",lineHeight:1.8,marginBottom:12}}>{bone.desc}</div>}
-        {bone.tip&&<div style={{padding:"11px 14px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:10,fontSize:13,color:"#92400e",lineHeight:1.6,marginBottom:10}}>💡 {bone.tip}</div>}
-        {bone.story&&<div style={{padding:"11px 14px",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,fontSize:13,color:"#166534",lineHeight:1.7}}>📖 {bone.story}</div>}
-        <button onClick={onClose} style={{marginTop:20,width:"100%",padding:15,borderRadius:12,border:"none",background:"#111827",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>닫기</button>
+        <div style={{fontSize:28,fontWeight:900}}>{bone.k}</div>
+        <div style={{fontSize:13,color:'#9ca3af',fontStyle:'italic',fontFamily:'Georgia,serif',margin:'4px 0 12px'}}>{bone.l}</div>
+        {bone.desc&&<div style={{fontSize:14,color:'#374151',lineHeight:1.8,marginBottom:10}}>{bone.desc}</div>}
+        {bone.tip&&<div style={{marginBottom:8}}><IB text={`💡 ${bone.tip}`} bg='#fefce8' bd='#fde68a' tc='#92400e'/></div>}
+        {bone.story&&<IB text={`📖 ${bone.story}`} bg='#f0fdf4' bd='#bbf7d0' tc='#166534'/>}
+        <button onClick={onClose} style={{marginTop:18,width:'100%',padding:14,borderRadius:12,border:'none',background:'#111827',color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>닫기</button>
       </div>
     </div>
   );
 }
 
-// ── CLASSIFICATION ──
-function ClassificationMode({bones}){
-  const [popup,setPopup]=useState(null);
-  const axial=bones.filter(b=>b.axial);
-  const appendicular=bones.filter(b=>!b.axial);
-  function Section({title,cats,data,accent}){
-    return(
-      <div style={{flex:1,minWidth:0}}>
-        <div style={{marginBottom:14,padding:"10px 14px",borderRadius:10,background:accent+"0d",border:`2px solid ${accent}33`}}>
-          <div style={{fontSize:13,fontWeight:800,color:accent}}>{title}</div>
-          <div style={{fontSize:11,color:accent+"88",marginTop:2}}>{data.length}개 뼈</div>
+// ── BONE FORM ──
+function BoneForm({title,init,cats,onClose,onSave,onNewCat}){
+  const [f,setF]=useState(init||{k:'',l:'',cat:cats[0]?.name||'두개골',desc:'',tip:'',story:''});
+  const [showNC,setShowNC]=useState(false);
+  const [nc,setNc]=useState({name:'',colorHex:COLOR_PALETTE[0],axial:true});
+  const sorted=[...cats].sort((a,b)=>a.order-b.order);
+  return(
+    <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:520,background:'#fff',borderRadius:'20px 20px 0 0',padding:'8px 22px 36px',maxHeight:'92vh',overflowY:'auto',animation:'slideUp .22s ease'}}>
+        <div style={{width:36,height:4,background:'#e5e7eb',borderRadius:2,margin:'12px auto 14px'}}/>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>{title}</div>
+        <div style={{display:'flex',gap:8,marginBottom:10}}>
+          <div style={{flex:1}}><FL t='한국어 *'/><input style={INP} value={f.k} onChange={e=>setF(x=>({...x,k:e.target.value}))}/></div>
+          <div style={{flex:1}}><FL t='라틴어 *'/><input style={INP} value={f.l} onChange={e=>setF(x=>({...x,l:e.target.value}))}/></div>
         </div>
-        {cats.map(cat=>{
-          const group=data.filter(b=>b.cat===cat);
-          if(!group.length)return null;
-          return(
-            <div key={cat} style={{marginBottom:14}}>
-              <div style={{fontSize:10,fontWeight:700,letterSpacing:1.5,color:CAT_COLOR[cat],marginBottom:6,paddingLeft:2}}>{cat}</div>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                {group.map(b=>(
-                  <button key={b.id} onClick={()=>setPopup(b)} style={{padding:"9px 12px",borderRadius:10,border:`1px solid ${CAT_COLOR[b.cat]}28`,background:`${CAT_COLOR[b.cat]}08`,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{width:6,height:6,borderRadius:"50%",background:CAT_COLOR[b.cat],flexShrink:0}}/>
-                    <span style={{fontSize:13,fontWeight:600,color:"#1f2937"}}>{b.k}</span>
-                    <span style={{fontSize:10,color:"#9ca3af",fontStyle:"italic",marginLeft:"auto",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:80}}>{b.l.split("(")[0].trim()}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-  return(
-    <>
-      <div style={{display:"flex",gap:10}}>
-        <Section title="축뼈대" cats={["두개골","척주","흉곽"]} data={axial} accent="#0ea5e9"/>
-        <div style={{width:1,background:"#e5e7eb",alignSelf:"stretch",flexShrink:0}}/>
-        <Section title="팔다리뼈대" cats={["상지대","상지","하지대","하지"]} data={appendicular} accent="#f97316"/>
-      </div>
-      <Modal bone={popup} onClose={()=>setPopup(null)}/>
-    </>
-  );
-}
-
-// ── COMPARISON (나란히 only) ──
-function ComparisonMode({bones}){
-  const [pairIdx,setPairIdx]=useState(0);
-  const vp=PAIRS.filter(p=>bones.find(b=>b.id===p.a)&&bones.find(b=>b.id===p.b));
-  if(!vp.length)return<div style={{padding:40,textAlign:"center",color:"#9ca3af"}}>비교할 쌍이 없습니다.</div>;
-  const pair=vp[pairIdx%vp.length];
-  const bA=bones.find(b=>b.id===pair.a),bB=bones.find(b=>b.id===pair.b);
-
-  function Card({bone}){
-    const c=CAT_COLOR[bone.cat];
-    return(
-      <div style={{flex:1,padding:14,borderRadius:12,border:`1.5px solid ${c}33`,background:`${c}06`}}>
-        <Tag label={bone.cat} color={c} small/>
-        <div style={{fontSize:20,fontWeight:800,color:"#111827",margin:"8px 0 3px"}}>{bone.k}</div>
-        <div style={{fontSize:11,color:"#9ca3af",fontStyle:"italic",fontFamily:"Georgia,serif",marginBottom:8}}>{bone.l}</div>
-        <div style={{fontSize:13,color:"#374151",lineHeight:1.7,marginBottom:8}}>{bone.desc}</div>
-        {bone.tip&&<div style={{fontSize:12,color:"#92400e",background:"#fefce8",padding:"8px 10px",borderRadius:7,border:"1px solid #fde68a",marginBottom:8}}>💡 {bone.tip}</div>}
-        {bone.story&&<div style={{fontSize:12,color:"#166534",background:"#f0fdf4",padding:"8px 10px",borderRadius:7,border:"1px solid #bbf7d0"}}>📖 {bone.story}</div>}
-      </div>
-    );
-  }
-
-  return(
-    <div>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-        {vp.map((p,i)=>{
-          const a=bones.find(b=>b.id===p.a),bb=bones.find(b=>b.id===p.b);
-          return<button key={i} onClick={()=>setPairIdx(i)} style={{padding:"6px 11px",borderRadius:16,border:`1px solid ${i===pairIdx%vp.length?"#111827":"#e5e7eb"}`,background:i===pairIdx%vp.length?"#111827":"#fff",color:i===pairIdx%vp.length?"#fff":"#374151",cursor:"pointer",fontSize:12,fontWeight:600}}>{a.k} vs {bb.k}</button>;
-        })}
-      </div>
-      <div style={{padding:"9px 14px",background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,fontSize:13,color:"#0369a1",marginBottom:14,fontWeight:600}}>⚡ {pair.note}</div>
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        <Card bone={bA}/>
-        <div style={{textAlign:"center",color:"#d1d5db",fontSize:16,fontWeight:300}}>vs</div>
-        <Card bone={bB}/>
+        <FL t='분류'/>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+          {sorted.map(c=><button key={c.name} onClick={()=>setF(x=>({...x,cat:c.name}))} style={{padding:'6px 12px',borderRadius:20,border:`1px solid ${f.cat===c.name?c.colorHex:'#e5e7eb'}`,background:f.cat===c.name?c.colorHex:'#fff',color:f.cat===c.name?'#fff':'#374151',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>{c.name}</button>)}
+          <button onClick={()=>setShowNC(s=>!s)} style={{padding:'6px 12px',borderRadius:20,border:`1px solid ${showNC?'#111827':'#e5e7eb'}`,background:showNC?'#111827':'#fff',color:showNC?'#fff':'#374151',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>+ 새 분류</button>
+        </div>
+        {showNC&&<div style={{padding:12,background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:12,marginBottom:10}} className='fadeIn'>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>새 분류 만들기</div>
+          <input style={{...INP,marginBottom:8}} placeholder='분류 이름' value={nc.name} onChange={e=>setNc(n=>({...n,name:e.target.value}))}/>
+          <FL t='색상'/>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+            {COLOR_PALETTE.map(h=><div key={h} onClick={()=>setNc(n=>({...n,colorHex:h}))} style={{width:26,height:26,borderRadius:7,background:h,cursor:'pointer',border:nc.colorHex===h?'2.5px solid #111827':'2px solid transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>{nc.colorHex===h&&<span style={{color:'#fff',fontSize:11,fontWeight:800}}>✓</span>}</div>)}
+          </div>
+          <div style={{display:'flex',gap:6,marginBottom:8}}>
+            {[true,false].map(v=><button key={String(v)} onClick={()=>setNc(n=>({...n,axial:v}))} style={{padding:'5px 12px',borderRadius:20,border:`1px solid ${nc.axial===v?'#111827':'#e5e7eb'}`,background:nc.axial===v?'#111827':'#fff',color:nc.axial===v?'#fff':'#374151',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>{v?'축뼈대':'팔다리뼈대'}</button>)}
+          </div>
+          <button onClick={()=>{if(!nc.name.trim())return;const cat={...nc,name:nc.name.trim(),order:cats.length};onNewCat(cat);setF(x=>({...x,cat:cat.name}));setShowNC(false);setNc({name:'',colorHex:COLOR_PALETTE[0],axial:true});}} disabled={!nc.name.trim()} style={{width:'100%',padding:9,borderRadius:10,border:'none',background:nc.name.trim()?'#111827':'#e5e7eb',color:nc.name.trim()?'#fff':'#9ca3af',fontWeight:700,cursor:nc.name.trim()?'pointer':'default',fontFamily:'inherit',fontSize:13}}>분류 추가</button>
+        </div>}
+        <FL t='설명'/><textarea style={{...INP,resize:'vertical',minHeight:50,marginBottom:8}} value={f.desc} onChange={e=>setF(x=>({...x,desc:e.target.value}))}/>
+        <FL t='암기 TIP'/><textarea style={{...INP,resize:'vertical',minHeight:46,marginBottom:8}} value={f.tip} onChange={e=>setF(x=>({...x,tip:e.target.value}))}/>
+        <FL t='연상 스토리 📖'/><textarea style={{...INP,resize:'vertical',minHeight:58,marginBottom:14}} placeholder='기억에 남는 연상 이야기...' value={f.story} onChange={e=>setF(x=>({...x,story:e.target.value}))}/>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={onClose} style={{flex:1,padding:12,borderRadius:10,border:'1px solid #e5e7eb',background:'#fff',color:'#6b7280',cursor:'pointer',fontFamily:'inherit',fontSize:14}}>취소</button>
+          <button onClick={()=>{if(f.k.trim()&&f.l.trim())onSave(f);}} disabled={!f.k.trim()||!f.l.trim()} style={{flex:2,padding:12,borderRadius:10,border:'none',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',background:(!f.k.trim()||!f.l.trim())?'#e5e7eb':'#111827',color:(!f.k.trim()||!f.l.trim())?'#9ca3af':'#fff'}}>저장</button>
+        </div>
       </div>
     </div>
   );
+}
+
+// ── CLASSIFY ──
+function ClassifyMode({bones,cats,setBones,setCats}){
+  const [popup,setPopup]=useState(null);
+  const [axOpen,setAxOpen]=useState(false);
+  const [apOpen,setApOpen]=useState(false);
+  const [showAdd,setShowAdd]=useState(false);
+  const sorted=[...cats].sort((a,b)=>a.order-b.order);
+  const axCats=sorted.filter(c=>c.axial),apCats=sorted.filter(c=>!c.axial);
+  function Hdr({title,cnt,catCnt,accent,open,onToggle}){return(
+    <div onClick={onToggle} style={{display:'flex',alignItems:'center',gap:12,padding:'14px 16px',cursor:'pointer',background:'#fff',borderBottom:'1px solid #f3f4f6',userSelect:'none'}}>
+      <div style={{width:4,height:38,borderRadius:2,background:accent,flexShrink:0}}/>
+      <div style={{flex:1}}><div style={{fontSize:15,fontWeight:800,color:accent}}>{title}</div><div style={{fontSize:11,color:'#9ca3af'}}>{cnt}개 뼈 · {catCnt}개 카테고리</div></div>
+      <span style={{fontSize:18,color:'#9ca3af',transition:'transform .22s',transform:open?'rotate(180deg)':'none'}}>▼</span>
+    </div>
+  );}
+  function CatGrp({cat}){
+    const cc=catColor(cats,cat.name);
+    const grp=bones.filter(b=>b.cat===cat.name);
+    if(!grp.length)return null;
+    return(<div style={{padding:'6px 14px 4px'}}>
+      <div style={{display:'flex',alignItems:'center',gap:8,padding:'5px 2px'}}>
+        <span style={{fontSize:9,fontWeight:700,letterSpacing:1.5,color:cc}}>{cat.name.toUpperCase()}</span>
+        <div style={{flex:1,height:1,background:'#f3f4f6'}}/>
+      </div>
+      {grp.map(b=><div key={b.id} onClick={()=>setPopup(b)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,cursor:'pointer',marginBottom:3,background:cc+'08',border:`1px solid ${cc}18`}}>
+        <div style={{width:6,height:6,borderRadius:'50%',background:cc,flexShrink:0}}/>
+        <span style={{fontSize:13,fontWeight:600,color:'#1f2937',flex:1}}>{b.k}</span>
+        <span style={{fontSize:10,color:'#9ca3af',fontStyle:'italic',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:90}}>{b.l.split('(')[0].trim()}</span>
+      </div>)}
+    </div>);
+  }
+  return(<>
+    <div style={{paddingBottom:80}}>
+      <Hdr title='축뼈대' cnt={bones.filter(b=>axCats.some(c=>c.name===b.cat)).length} catCnt={axCats.length} accent='#0ea5e9' open={axOpen} onToggle={()=>setAxOpen(o=>!o)}/>
+      {axOpen&&<div className='fadeIn'>{axCats.map(c=><CatGrp key={c.name} cat={c}/>)}<div style={{height:8}}/></div>}
+      <div style={{height:6,background:'#f3f4f6'}}/>
+      <Hdr title='팔다리뼈대' cnt={bones.filter(b=>apCats.some(c=>c.name===b.cat)).length} catCnt={apCats.length} accent='#f97316' open={apOpen} onToggle={()=>setApOpen(o=>!o)}/>
+      {apOpen&&<div className='fadeIn'>{apCats.map(c=><CatGrp key={c.name} cat={c}/>)}<div style={{height:8}}/></div>}
+    </div>
+    <button onClick={()=>setShowAdd(true)} style={{position:'fixed',bottom:76,right:16,background:'#111827',color:'#fff',border:'none',borderRadius:16,padding:'11px 18px',cursor:'pointer',fontSize:13,fontWeight:700,display:'flex',alignItems:'center',gap:6,boxShadow:'0 4px 20px rgba(0,0,0,0.2)',fontFamily:'inherit',zIndex:40}}>＋ 단어 추가</button>
+    {popup&&<Modal bone={popup} cats={cats} onClose={()=>setPopup(null)}/>}
+    {showAdd&&<BoneForm title='➕ 새 단어' cats={cats} onClose={()=>setShowAdd(false)} onNewCat={c=>setCats(p=>[...p,c])} onSave={f=>{const ax=catAxial(cats,f.cat);setBones(b=>[...b,{id:'c_'+Date.now(),...f,axial:ax}]);setShowAdd(false);}}/>}
+  </>);
+}
+
+// ── COMPARE ──
+function CompareMode({bones,cats}){
+  const [idx,setIdx]=useState(0);
+  const vp=PAIRS.filter(p=>bones.find(b=>b.id===p.a)&&bones.find(b=>b.id===p.b));
+  if(!vp.length)return <div style={{padding:40,textAlign:'center',color:'#9ca3af'}}>비교할 쌍이 없습니다.</div>;
+  const pair=vp[idx%vp.length];
+  const bA=bones.find(b=>b.id===pair.a),bB=bones.find(b=>b.id===pair.b);
+  function Card({bone}){const c=catColor(cats,bone.cat);return(
+    <div style={{padding:14,borderRadius:12,border:`1.5px solid ${c}33`,background:`${c}06`,marginBottom:10}}>
+      <Tag label={bone.cat} color={c} small/><div style={{fontSize:20,fontWeight:800,margin:'8px 0 3px'}}>{bone.k}</div>
+      <div style={{fontSize:11,color:'#9ca3af',fontStyle:'italic',marginBottom:8}}>{bone.l}</div>
+      <div style={{fontSize:13,color:'#374151',lineHeight:1.7,marginBottom:8}}>{bone.desc}</div>
+      {bone.tip&&<div style={{marginBottom:8}}><IB text={`💡 ${bone.tip}`} bg='#fefce8' bd='#fde68a' tc='#92400e'/></div>}
+      {bone.story&&<IB text={`📖 ${bone.story}`} bg='#f0fdf4' bd='#bbf7d0' tc='#166534'/>}
+    </div>
+  );}
+  return(<div style={{padding:14}}>
+    <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:14}}>
+      {vp.map((p,i)=>{const a=bones.find(b=>b.id===p.a),bb=bones.find(b=>b.id===p.b);return <button key={i} onClick={()=>setIdx(i)} style={{padding:'6px 11px',borderRadius:16,border:`1px solid ${i===idx%vp.length?'#111827':'#e5e7eb'}`,background:i===idx%vp.length?'#111827':'#fff',color:i===idx%vp.length?'#fff':'#374151',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',whiteSpace:'nowrap'}}>{a.k} vs {bb.k}</button>;})}
+    </div>
+    <div style={{padding:'9px 14px',background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:8,fontSize:13,color:'#0369a1',marginBottom:14,fontWeight:600}}>⚡ {pair.note}</div>
+    <Card bone={bA}/><div style={{textAlign:'center',color:'#d1d5db',fontSize:16,margin:'4px 0'}}>vs</div><Card bone={bB}/>
+  </div>);
 }
 
 // ── FLASHCARD ──
-function FlashcardMode({bones,images,setImages}){
+function FlashcardMode({bones,cats,user,imgUrls,setImgUrls}){
   const [cards]=useState(()=>shuffle(bones));
   const [idx,setIdx]=useState(0);
-  const [flipped,setFlipped]=useState(false);
-  const [dir,setDir]=useState("k2l");
-  const [imgPos,setImgPos]=useState(()=>loadImgPos());
-  const [showSettings,setShowSettings]=useState(false);
-  const fileRef=useRef(null);
+  const [flip,setFlip]=useState(false);
+  const [dir,setDir]=useState('k2l');
+  const [imgPos,setImgPos]=useState(()=>localStorage.getItem('fc_pos')||'front');
+  const [showSet,setShowSet]=useState(false);
+  const [uploading,setUploading]=useState(false);
+  const fRef=useRef(null);
   const card=cards[idx%cards.length];
-  const cardImg=images[card.id]||null;
-
-  function handleImgUpload(e){
-    const file=e.target.files[0];
-    if(!file)return;
-    const reader=new FileReader();
-    reader.onload=ev=>{const updated={...images,[card.id]:ev.target.result};setImages(updated);saveImages(updated);};
-    reader.readAsDataURL(file);
-    e.target.value="";
+  const cc=catColor(cats,card.cat);
+  const imgUrl=imgUrls[card.id]||null;
+  async function handleUpload(e){
+    const file=e.target.files[0];if(!file)return;
+    if(!user){alert('이미지 저장은 로그인 후 가능해요.');return;}
+    setUploading(true);
+    try{
+      const url=await uploadCloudinary(user.uid,card.id,file);
+      if(url){const u={...imgUrls,[card.id]:url};setImgUrls(u);await dbSave(user.uid,{imageUrls:{[card.id]:url}});}
+    }catch(e){alert('업로드 실패: '+e.message);}
+    setUploading(false);e.target.value='';
   }
-  function removeImg(){const updated={...images};delete updated[card.id];setImages(updated);saveImages(updated);}
-  function changePos(p){setImgPos(p);saveImgPos(p);}
-
-  const showImgFront=cardImg&&(imgPos==="front"||imgPos==="both");
-  const showImgBack=cardImg&&(imgPos==="back"||imgPos==="both");
-
+  async function removeImg(){
+    const u={...imgUrls};delete u[card.id];setImgUrls(u);
+    if(user)await _db.collection('users').doc(user.uid).update({[`imageUrls.${card.id}`]:firebase.firestore.FieldValue.delete()});
+  }
+  const showF=imgUrl&&(imgPos==='front'||imgPos==='both');
+  const showB=imgUrl&&(imgPos==='back'||imgPos==='both');
   return(
-    <div style={{maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
-      <div style={{display:"flex",gap:6,width:"100%",alignItems:"center"}}>
-        {[["k2l","한 → 라틴"],["l2k","라틴 → 한"]].map(([d,l])=>(
-          <button key={d} onClick={()=>setDir(d)} style={{flex:1,padding:11,borderRadius:12,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:dir===d?"#111827":"#f3f4f6",color:dir===d?"#fff":"#6b7280"}}>{l}</button>
-        ))}
-        <button onClick={()=>setShowSettings(s=>!s)} style={{padding:"10px 12px",borderRadius:12,border:`1px solid ${showSettings?"#111827":"#e5e7eb"}`,background:showSettings?"#111827":"#fff",color:showSettings?"#fff":"#6b7280",cursor:"pointer",fontSize:14,flexShrink:0}}>⚙️</button>
+    <div style={{maxWidth:520,margin:'0 auto',display:'flex',flexDirection:'column',alignItems:'center',gap:12,padding:14,height:'calc(100vh - 140px)'}}>
+      <div style={{display:'flex',gap:6,width:'100%',alignItems:'center'}}>
+        {[['k2l','한 → 라틴'],['l2k','라틴 → 한']].map(([d,l])=><button key={d} onClick={()=>{setDir(d);setFlip(false);}} style={{flex:1,padding:10,borderRadius:12,border:'none',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',background:dir===d?'#111827':'#f3f4f6',color:dir===d?'#fff':'#6b7280'}}>{l}</button>)}
+        <button onClick={()=>setShowSet(s=>!s)} style={{padding:'9px 12px',borderRadius:12,border:`1px solid ${showSet?'#111827':'#e5e7eb'}`,background:showSet?'#111827':'#fff',color:showSet?'#fff':'#6b7280',cursor:'pointer',fontSize:14}}>⚙️</button>
       </div>
-
-      {showSettings&&(
-        <div style={{width:"100%",padding:16,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:12}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#374151",marginBottom:10,letterSpacing:1}}>🖼 이미지 표시 위치</div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {[["none","없음"],["front","앞면"],["back","뒷면"],["both","앞+뒤"]].map(([v,l])=>(
-              <button key={v} onClick={()=>changePos(v)} style={{padding:"7px 14px",borderRadius:20,border:`1px solid ${imgPos===v?"#111827":"#e5e7eb"}`,background:imgPos===v?"#111827":"#fff",color:imgPos===v?"#fff":"#6b7280",cursor:"pointer",fontSize:12,fontWeight:600}}>{l}</button>
-            ))}
-          </div>
-          <div style={{fontSize:11,color:"#9ca3af",marginTop:8}}>카드 하단 버튼으로 현재 카드에 이미지를 추가할 수 있어요.</div>
+      {showSet&&<div style={{width:'100%',padding:14,background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:12}} className='fadeIn'>
+        <div style={{fontSize:12,fontWeight:700,color:'#374151',marginBottom:10,letterSpacing:1}}>🖼 이미지 표시 위치</div>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+          {[['none','없음'],['front','앞면'],['back','뒷면'],['both','앞+뒤']].map(([v,l])=><button key={v} onClick={()=>{setImgPos(v);localStorage.setItem('fc_pos',v);}} style={{padding:'6px 13px',borderRadius:20,border:`1px solid ${imgPos===v?'#111827':'#e5e7eb'}`,background:imgPos===v?'#111827':'#fff',color:imgPos===v?'#fff':'#6b7280',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>{l}</button>)}
         </div>
-      )}
-
-      <div style={{width:"100%",fontSize:12,color:"#9ca3af",display:"flex",justifyContent:"space-between"}}>
+        {!user&&<div style={{fontSize:11,color:'#f59e0b',marginTop:8}}>⚠ 이미지 저장은 로그인 후 가능해요.</div>}
+      </div>}
+      <div style={{width:'100%',fontSize:12,color:'#9ca3af',display:'flex',justifyContent:'space-between'}}>
         <span>{(idx%cards.length)+1} / {cards.length}</span>
-        {cardImg&&<span style={{color:"#0ea5e9"}}>🖼 이미지 있음</span>}
+        {imgUrl&&<span style={{color:'#0ea5e9'}}>🖼 이미지 있음</span>}
       </div>
-      <div style={{width:"100%",height:3,background:"#f3f4f6",borderRadius:2}}>
-        <div style={{width:`${(((idx%cards.length)+1)/cards.length)*100}%`,height:"100%",background:"#111827",borderRadius:2,transition:"width 0.3s"}}/>
+      <div style={{width:'100%',height:3,background:'#f3f4f6',borderRadius:2}}>
+        <div style={{width:`${(((idx%cards.length)+1)/cards.length)*100}%`,height:'100%',background:'#111827',borderRadius:2,transition:'width .3s'}}/>
       </div>
-
-      <div onClick={()=>setFlipped(f=>!f)} style={{width:"100%",minHeight:240,padding:24,borderRadius:16,cursor:"pointer",background:flipped?`linear-gradient(135deg,${CAT_COLOR[card.cat]}10,#fff)`:"#f9fafb",border:`1.5px solid ${flipped?CAT_COLOR[card.cat]+"55":"#e5e7eb"}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,textAlign:"center",userSelect:"none",transition:"all 0.22s"}}>
-        <Tag label={card.cat} color={CAT_COLOR[card.cat]}/>
-        {!flipped?<>
-          {showImgFront&&<img src={cardImg} alt="" style={{maxWidth:"100%",maxHeight:140,borderRadius:10,objectFit:"contain"}}/>}
-          <div style={{fontSize:dir==="k2l"?36:22,fontWeight:800,color:"#111827",fontStyle:dir==="l2k"?"italic":"normal",fontFamily:dir==="l2k"?"Georgia,serif":"inherit",lineHeight:1.3}}>{dir==="k2l"?card.k:card.l}</div>
-          <div style={{fontSize:12,color:"#9ca3af",marginTop:4}}>탭하여 뒤집기</div>
+      <div onClick={()=>setFlip(f=>!f)} style={{width:'100%',flex:1,padding:20,borderRadius:16,cursor:'pointer',background:flip?`linear-gradient(135deg,${cc}10,#fff)`:'#f9fafb',border:`1.5px solid ${flip?cc+'55':'#e5e7eb'}`,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,textAlign:'center',userSelect:'none',transition:'all .22s',overflow:'hidden'}}>
+        {!flip?<>
+          {showF&&<img src={imgUrl} alt='' style={{maxWidth:'100%',maxHeight:130,borderRadius:10,objectFit:'contain'}}/>}
+          <Tag label={card.cat} color={cc}/>
+          <div style={{fontSize:dir==='k2l'?34:20,fontWeight:800,color:'#111827',fontStyle:dir==='l2k'?'italic':'normal',fontFamily:dir==='l2k'?'Georgia,serif':'inherit',lineHeight:1.3}}>{dir==='k2l'?card.k:card.l}</div>
+          <div style={{fontSize:12,color:'#9ca3af'}}>탭하여 뒤집기</div>
         </>:<>
-          {showImgBack&&<img src={cardImg} alt="" style={{maxWidth:"100%",maxHeight:140,borderRadius:10,objectFit:"contain"}}/>}
-          <div style={{fontSize:12,color:"#9ca3af"}}>{dir==="k2l"?card.k:card.l}</div>
-          <div style={{fontSize:dir==="l2k"?32:18,fontWeight:800,color:CAT_COLOR[card.cat],fontStyle:dir==="k2l"?"italic":"normal",fontFamily:dir==="k2l"?"Georgia,serif":"inherit",lineHeight:1.3}}>{dir==="k2l"?card.l:card.k}</div>
-          {card.tip&&<div style={{marginTop:4,padding:"9px 12px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:10,fontSize:12,color:"#92400e",maxWidth:340,textAlign:"left"}}>💡 {card.tip}</div>}
-          {card.story&&<div style={{padding:"9px 12px",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,fontSize:12,color:"#166534",maxWidth:340,textAlign:"left"}}>📖 {card.story}</div>}
+          {showB&&<img src={imgUrl} alt='' style={{maxWidth:'100%',maxHeight:130,borderRadius:10,objectFit:'contain'}}/>}
+          <div style={{fontSize:12,color:'#9ca3af'}}>{dir==='k2l'?card.k:card.l}</div>
+          <div style={{fontSize:dir==='l2k'?30:18,fontWeight:800,color:cc,fontStyle:dir==='k2l'?'italic':'normal',fontFamily:dir==='k2l'?'Georgia,serif':'inherit',lineHeight:1.3}}>{dir==='k2l'?card.l:card.k}</div>
+          {card.tip&&<div style={{width:'100%',textAlign:'left'}}><IB text={`💡 ${card.tip}`} bg='#fefce8' bd='#fde68a' tc='#92400e'/></div>}
+          {card.story&&<div style={{width:'100%',textAlign:'left'}}><IB text={`📖 ${card.story}`} bg='#f0fdf4' bd='#bbf7d0' tc='#166534'/></div>}
         </>}
       </div>
-
-      {imgPos!=="none"&&(
-        <div style={{display:"flex",gap:8,width:"100%"}}>
-          <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImgUpload}/>
-          <button onClick={()=>fileRef.current.click()} style={{flex:1,padding:"10px",borderRadius:10,border:"1px dashed #0ea5e9",background:"#f0f9ff",color:"#0369a1",cursor:"pointer",fontSize:13,fontWeight:600}}>
-            {cardImg?"🔄 이미지 교체":"📷 이미지 추가"}
-          </button>
-          {cardImg&&<button onClick={removeImg} style={{padding:"10px 14px",borderRadius:10,border:"1px solid #fca5a5",background:"#fff5f5",color:"#dc2626",cursor:"pointer",fontSize:13}}>🗑</button>}
-        </div>
-      )}
-
-      <div style={{display:"flex",gap:10,width:"100%"}}>
-        <button onClick={()=>{setIdx(i=>Math.max(0,i-1));setFlipped(false);}} disabled={idx===0} style={{flex:1,padding:14,borderRadius:12,border:"1px solid #e5e7eb",background:"#fff",color:idx===0?"#d1d5db":"#374151",cursor:idx===0?"default":"pointer",fontSize:14}}>← 이전</button>
-        <button onClick={()=>{setIdx(i=>i+1);setFlipped(false);}} style={{flex:2,padding:14,borderRadius:12,border:"none",background:"#111827",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>다음 →</button>
+      {imgPos!=='none'&&<div style={{display:'flex',gap:8,width:'100%'}}>
+        <input ref={fRef} type='file' accept='image/*' style={{display:'none'}} onChange={handleUpload}/>
+        <button onClick={()=>fRef.current.click()} disabled={uploading} style={{flex:1,padding:10,borderRadius:10,border:'1.5px dashed #0ea5e9',background:'#f0f9ff',color:'#0369a1',cursor:uploading?'default':'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>
+          {uploading?'업로드 중...':(imgUrl?'🔄 이미지 교체':'📷 이미지 추가')}
+        </button>
+        {imgUrl&&<button onClick={removeImg} style={{padding:'10px 14px',borderRadius:10,border:'1px solid #fca5a5',background:'#fff5f5',color:'#dc2626',cursor:'pointer',fontSize:13}}>🗑</button>}
+      </div>}
+      <div style={{display:'flex',gap:10,width:'100%'}}>
+        <button onClick={()=>{setIdx(i=>Math.max(0,i-1));setFlip(false);}} disabled={idx===0} style={{flex:1,padding:13,borderRadius:12,border:'1px solid #e5e7eb',background:'#fff',color:idx===0?'#d1d5db':'#374151',cursor:idx===0?'default':'pointer',fontSize:14,fontFamily:'inherit'}}>← 이전</button>
+        <button onClick={()=>{setIdx(i=>i+1);setFlip(false);}} style={{flex:2,padding:13,borderRadius:12,border:'none',background:'#111827',color:'#fff',cursor:'pointer',fontSize:14,fontWeight:700,fontFamily:'inherit'}}>다음 →</button>
       </div>
     </div>
   );
 }
 
 // ── QUIZ ──
-function QuizMode({bones,onWrong}){
-  const [tab,setTab]=useState("choice"); // "choice" | "input"
-  return(
-    <div>
-      <div style={{display:"flex",gap:6,marginBottom:18}}>
-        {[["choice","📝 4지선다"],["input","⌨️ 직접 입력"]].map(([t,l])=>(
-          <button key={t} onClick={()=>setTab(t)} style={{padding:"9px 18px",borderRadius:20,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:tab===t?"#111827":"#f3f4f6",color:tab===t?"#fff":"#6b7280"}}>{l}</button>
-        ))}
-      </div>
-      {tab==="choice"&&<ChoiceQuiz bones={bones} onWrong={onWrong}/>}
-      {tab==="input"&&<InputQuiz bones={bones} onWrong={onWrong}/>}
+function QuizMode({bones,cats,onWrong}){
+  const [tab,setTab]=useState('choice');
+  return(<div style={{padding:14}}>
+    <div style={{display:'flex',gap:6,marginBottom:16}}>
+      {[['choice','📝 4지선다'],['input','⌨️ 직접 입력']].map(([t,l])=><button key={t} onClick={()=>setTab(t)} style={{padding:'9px 18px',borderRadius:20,border:'none',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',background:tab===t?'#111827':'#f3f4f6',color:tab===t?'#fff':'#6b7280'}}>{l}</button>)}
     </div>
-  );
+    {tab==='choice'?<ChoiceQ bones={bones} cats={cats} onWrong={onWrong}/>:<InputQ bones={bones} cats={cats} onWrong={onWrong}/>}
+  </div>);
 }
-
-function ChoiceQuiz({bones,onWrong}){
-  const [score,setScore]=useState({c:0,t:0});
+function ChoiceQ({bones,cats,onWrong}){
+  const [sc,setSc]=useState({c:0,t:0});
   const [curr,setCurr]=useState(null);
   const [opts,setOpts]=useState([]);
   const [sel,setSel]=useState(null);
-  const [dir,setDir]=useState("k2l");
-  function next(){
-    if(bones.length<4)return;
-    const b=bones[Math.floor(Math.random()*bones.length)];
-    setOpts(shuffle([b,...shuffle(bones.filter(x=>x.id!==b.id)).slice(0,3)]));
-    setCurr(b);setSel(null);
-  }
+  const [dir,setDir]=useState('k2l');
+  function next(){if(bones.length<4)return;const b=bones[Math.floor(Math.random()*bones.length)];setOpts(shuffle([b,...shuffle(bones.filter(x=>x.id!==b.id)).slice(0,3)]));setCurr(b);setSel(null);}
   useEffect(()=>{next();},[bones.length,dir]);
-  if(!curr||bones.length<4)return<div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>단어가 4개 이상 필요합니다.</div>;
-  const answer=opt=>{if(sel)return;const ok=opt.id===curr.id;setSel(opt);setScore(s=>({c:s.c+(ok?1:0),t:s.t+1}));if(!ok)onWrong(curr.id);};
-  const acc=score.t>0?Math.round(score.c/score.t*100):null;
-  return(
-    <div style={{maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{display:"flex",gap:6}}>
-          {[["k2l","한 → 라틴"],["l2k","라틴 → 한"]].map(([d,l])=>(
-            <button key={d} onClick={()=>setDir(d)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:dir===d?"#111827":"#f3f4f6",color:dir===d?"#fff":"#6b7280"}}>{l}</button>
-          ))}
-        </div>
-        {acc!==null&&<div style={{display:"flex",gap:10,fontSize:13}}>
-          <span style={{color:"#16a34a",fontWeight:700}}>✓{score.c}</span>
-          <span style={{color:"#dc2626",fontWeight:700}}>✗{score.t-score.c}</span>
-          <span style={{color:"#9ca3af",fontWeight:600}}>{acc}%</span>
-        </div>}
-      </div>
-      <div style={{padding:22,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:14,textAlign:"center"}}>
-        <Tag label={curr.cat} color={CAT_COLOR[curr.cat]}/>
-        <div style={{fontSize:30,fontWeight:800,color:"#111827",margin:"12px 0 4px",fontStyle:dir==="l2k"?"italic":"normal",fontFamily:dir==="l2k"?"Georgia,serif":"inherit",lineHeight:1.3}}>{dir==="k2l"?curr.k:curr.l}</div>
-        <div style={{fontSize:12,color:"#9ca3af"}}>{dir==="k2l"?"라틴어":"한국어"} 명칭을 고르세요</div>
-      </div>
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {opts.map((o,i)=>{const isC=o.id===curr.id,isS=sel&&sel.id===o.id;return<button key={o.id} onClick={()=>answer(o)} style={{padding:"14px 16px",borderRadius:12,textAlign:"left",cursor:sel?"default":"pointer",fontSize:dir==="l2k"?15:14,fontStyle:dir==="l2k"?"italic":"normal",fontFamily:dir==="l2k"?"Georgia,serif":"inherit",background:sel?(isC?"#f0fdf4":isS?"#fef2f2":"#f9fafb"):"#fff",border:`1px solid ${sel?(isC?"#86efac":isS?"#fca5a5":"#e5e7eb"):"#e5e7eb"}`,color:sel?(isC?"#166534":isS?"#991b1b":"#9ca3af"):"#111827",transition:"all 0.18s",fontWeight:isS?700:400}}><span style={{fontSize:11,color:"#d1d5db",fontStyle:"normal",fontFamily:"inherit"}}>{"ABCD"[i]}. </span>{dir==="k2l"?o.l:o.k}</button>;})}
-      </div>
-      {sel&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {curr.tip&&<div style={{padding:"10px 14px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:10,fontSize:13,color:"#92400e"}}>💡 {curr.tip}</div>}
-        {curr.story&&<div style={{padding:"10px 14px",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,fontSize:13,color:"#166534"}}>📖 {curr.story}</div>}
-        <button onClick={next} style={{padding:14,borderRadius:12,border:"none",background:"#111827",color:"#fff",cursor:"pointer",fontSize:15,fontWeight:700}}>다음 문제 →</button>
-      </div>}
+  if(!curr||bones.length<4)return <div style={{textAlign:'center',padding:40,color:'#9ca3af'}}>단어가 4개 이상 필요합니다.</div>;
+  const ans=opt=>{if(sel)return;const ok=opt.id===curr.id;setSel(opt);setSc(s=>({c:s.c+(ok?1:0),t:s.t+1}));if(!ok)onWrong(curr.id);};
+  const acc=sc.t>0?Math.round(sc.c/sc.t*100):null;
+  return(<div style={{maxWidth:520,margin:'0 auto',display:'flex',flexDirection:'column',gap:12}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div style={{display:'flex',gap:6}}>{[['k2l','한→라틴'],['l2k','라틴→한']].map(([d,l])=><button key={d} onClick={()=>setDir(d)} style={{padding:'7px 13px',borderRadius:20,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',background:dir===d?'#111827':'#f3f4f6',color:dir===d?'#fff':'#6b7280'}}>{l}</button>)}</div>
+      {acc!==null&&<div style={{display:'flex',gap:8,fontSize:13}}><span style={{color:'#16a34a',fontWeight:700}}>✓{sc.c}</span><span style={{color:'#dc2626',fontWeight:700}}>✗{sc.t-sc.c}</span><span style={{color:'#9ca3af'}}>{acc}%</span></div>}
     </div>
-  );
+    <div style={{padding:20,background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:14,textAlign:'center'}}>
+      <Tag label={curr.cat} color={catColor(cats,curr.cat)}/>
+      <div style={{fontSize:28,fontWeight:800,margin:'10px 0 4px',fontStyle:dir==='l2k'?'italic':'normal',fontFamily:dir==='l2k'?'Georgia,serif':'inherit',lineHeight:1.3}}>{dir==='k2l'?curr.k:curr.l}</div>
+      <div style={{fontSize:12,color:'#9ca3af'}}>{dir==='k2l'?'라틴어':'한국어'} 명칭을 고르세요</div>
+    </div>
+    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+      {opts.map((o,i)=>{const isC=o.id===curr.id,isS=sel&&sel.id===o.id;return(
+        <button key={o.id} onClick={()=>ans(o)} style={{padding:'13px 16px',borderRadius:12,textAlign:'left',cursor:sel?'default':'pointer',fontSize:dir==='l2k'?15:14,fontStyle:dir==='l2k'?'italic':'normal',fontFamily:dir==='l2k'?'Georgia,serif':'inherit',background:sel?(isC?'#f0fdf4':isS?'#fef2f2':'#f9fafb'):'#fff',border:`1px solid ${sel?(isC?'#86efac':isS?'#fca5a5':'#e5e7eb'):'#e5e7eb'}`,color:sel?(isC?'#166534':isS?'#991b1b':'#9ca3af'):'#111827',fontWeight:isS?700:400,transition:'all .18s'}}>
+          <span style={{fontSize:11,color:'#d1d5db',fontStyle:'normal',fontFamily:'inherit'}}>{'ABCD'[i]}. </span>{dir==='k2l'?o.l:o.k}
+        </button>
+      );})}
+    </div>
+    {sel&&<div style={{display:'flex',flexDirection:'column',gap:8}}>
+      {curr.tip&&<IB text={`💡 ${curr.tip}`} bg='#fefce8' bd='#fde68a' tc='#92400e'/>}
+      {curr.story&&<IB text={`📖 ${curr.story}`} bg='#f0fdf4' bd='#bbf7d0' tc='#166534'/>}
+      <button onClick={next} style={{padding:13,borderRadius:12,border:'none',background:'#111827',color:'#fff',cursor:'pointer',fontSize:15,fontWeight:700,fontFamily:'inherit'}}>다음 문제 →</button>
+    </div>}
+  </div>);
 }
-
-function InputQuiz({bones,onWrong}){
-  const [score,setScore]=useState({c:0,t:0});
+function InputQ({bones,cats,onWrong}){
+  const [sc,setSc]=useState({c:0,t:0});
   const [curr,setCurr]=useState(null);
-  const [dir,setDir]=useState("k2l");
-  const [input,setInput]=useState("");
-  const [result,setResult]=useState(null); // null | "correct" | "wrong"
-  const [shakeKey,setShakeKey]=useState(0);
-  const inputRef=useRef(null);
-
-  function next(){
-    if(!bones.length)return;
-    setCurr(bones[Math.floor(Math.random()*bones.length)]);
-    setInput("");setResult(null);
-    setTimeout(()=>inputRef.current&&inputRef.current.focus(),50);
-  }
+  const [dir,setDir]=useState('k2l');
+  const [input,setInput]=useState('');
+  const [result,setResult]=useState(null);
+  const [sk,setSk]=useState(0);
+  const iRef=useRef(null);
+  function next(){if(!bones.length)return;setCurr(bones[Math.floor(Math.random()*bones.length)]);setInput('');setResult(null);setTimeout(()=>iRef.current?.focus(),50);}
   useEffect(()=>{next();},[bones.length,dir]);
   if(!curr)return null;
-
-  const correctAnswer=dir==="k2l"?curr.l:curr.k;
-
-  function checkAnswer(){
+  const ca=dir==='k2l'?curr.l:curr.k;
+  function check(){
     if(result||!input.trim())return;
-    // For Latin names with parentheses like "Cervical (C1~C7)", accept base name too
-    const userAns=normalize(input);
-    const fullAns=normalize(correctAnswer);
-    const baseAns=normalize(correctAnswer.split("(")[0]);
-    const ok=userAns===fullAns||userAns===baseAns;
-    setResult(ok?"correct":"wrong");
-    setScore(s=>({c:s.c+(ok?1:0),t:s.t+1}));
-    if(!ok)onWrong(curr.id);
-    if(!ok){setShakeKey(k=>k+1);}
+    const ok=norm(input)===norm(ca)||norm(input)===norm(ca.split('(')[0]);
+    setResult(ok?'correct':'wrong');setSc(s=>({c:s.c+(ok?1:0),t:s.t+1}));
+    if(!ok){onWrong(curr.id);setSk(k=>k+1);}
   }
-
-  function handleKey(e){if(e.key==="Enter"){if(result)next();else checkAnswer();}}
-  const acc=score.t>0?Math.round(score.c/score.t*100):null;
-
-  return(
-    <div style={{maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{display:"flex",gap:6}}>
-          {[["k2l","한 → 라틴"],["l2k","라틴 → 한"]].map(([d,l])=>(
-            <button key={d} onClick={()=>setDir(d)} style={{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:dir===d?"#111827":"#f3f4f6",color:dir===d?"#fff":"#6b7280"}}>{l}</button>
-          ))}
-        </div>
-        {acc!==null&&<div style={{display:"flex",gap:10,fontSize:13}}>
-          <span style={{color:"#16a34a",fontWeight:700}}>✓{score.c}</span>
-          <span style={{color:"#dc2626",fontWeight:700}}>✗{score.t-score.c}</span>
-          <span style={{color:"#9ca3af",fontWeight:600}}>{acc}%</span>
-        </div>}
-      </div>
-
-      {/* Question */}
-      <div style={{padding:22,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:14,textAlign:"center"}}>
-        <Tag label={curr.cat} color={CAT_COLOR[curr.cat]}/>
-        <div style={{fontSize:30,fontWeight:800,color:"#111827",margin:"12px 0 4px",fontStyle:dir==="l2k"?"italic":"normal",fontFamily:dir==="l2k"?"Georgia,serif":"inherit",lineHeight:1.3}}>{dir==="k2l"?curr.k:curr.l}</div>
-        <div style={{fontSize:12,color:"#9ca3af"}}>{dir==="k2l"?"라틴어":"한국어"}로 직접 입력하세요</div>
-      </div>
-
-      {/* Input */}
-      <div key={shakeKey} className={result==="wrong"?"shake":""} style={{position:"relative"}}>
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={e=>setInput(e.target.value)}
-          onKeyDown={handleKey}
-          disabled={!!result}
-          placeholder={dir==="k2l"?"라틴어 명칭 입력...":"한국어 명칭 입력..."}
-          style={{
-            width:"100%",padding:"14px 16px",borderRadius:12,fontSize:15,fontFamily:dir==="k2l"?"Georgia,serif":"inherit",fontStyle:dir==="k2l"?"italic":"normal",
-            border:`1.5px solid ${result==="correct"?"#86efac":result==="wrong"?"#fca5a5":"#e5e7eb"}`,
-            background:result==="correct"?"#f0fdf4":result==="wrong"?"#fef2f2":"#fff",
-            color:result==="correct"?"#166534":result==="wrong"?"#991b1b":"#111827",
-            outline:"none",transition:"all 0.18s",
-          }}
-        />
-        {result&&<span style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",fontSize:18}}>{result==="correct"?"✅":"❌"}</span>}
-      </div>
-
-      {/* Feedback */}
-      {result&&(
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {result==="wrong"&&(
-            <div style={{padding:"12px 14px",background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:10,fontSize:14,color:"#991b1b",fontWeight:600}}>
-              정답: <span style={{fontStyle:dir==="k2l"?"italic":"normal",fontFamily:dir==="k2l"?"Georgia,serif":"inherit"}}>{correctAnswer}</span>
-            </div>
-          )}
-          {result==="correct"&&(
-            <div style={{padding:"12px 14px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:10,fontSize:14,color:"#166534",fontWeight:600,textAlign:"center"}}>
-              🎉 정답!
-            </div>
-          )}
-          {curr.tip&&<div style={{padding:"10px 14px",background:"#fefce8",border:"1px solid #fde68a",borderRadius:10,fontSize:13,color:"#92400e"}}>💡 {curr.tip}</div>}
-          {curr.story&&<div style={{padding:"10px 14px",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:10,fontSize:13,color:"#166534"}}>📖 {curr.story}</div>}
-          <button onClick={next} style={{padding:14,borderRadius:12,border:"none",background:"#111827",color:"#fff",cursor:"pointer",fontSize:15,fontWeight:700}}>다음 문제 → (Enter)</button>
-        </div>
-      )}
-      {!result&&(
-        <button onClick={checkAnswer} disabled={!input.trim()} style={{padding:14,borderRadius:12,border:"none",background:!input.trim()?"#e5e7eb":"#111827",color:!input.trim()?"#9ca3af":"#fff",cursor:!input.trim()?"default":"pointer",fontSize:15,fontWeight:700}}>확인 (Enter)</button>
-      )}
+  const acc=sc.t>0?Math.round(sc.c/sc.t*100):null;
+  return(<div style={{maxWidth:520,margin:'0 auto',display:'flex',flexDirection:'column',gap:12}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div style={{display:'flex',gap:6}}>{[['k2l','한→라틴'],['l2k','라틴→한']].map(([d,l])=><button key={d} onClick={()=>setDir(d)} style={{padding:'7px 13px',borderRadius:20,border:'none',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',background:dir===d?'#111827':'#f3f4f6',color:dir===d?'#fff':'#6b7280'}}>{l}</button>)}</div>
+      {acc!==null&&<div style={{display:'flex',gap:8,fontSize:13}}><span style={{color:'#16a34a',fontWeight:700}}>✓{sc.c}</span><span style={{color:'#dc2626',fontWeight:700}}>✗{sc.t-sc.c}</span><span style={{color:'#9ca3af'}}>{acc}%</span></div>}
     </div>
-  );
+    <div style={{padding:20,background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:14,textAlign:'center'}}>
+      <Tag label={curr.cat} color={catColor(cats,curr.cat)}/>
+      <div style={{fontSize:28,fontWeight:800,margin:'10px 0 4px',fontStyle:dir==='l2k'?'italic':'normal',fontFamily:dir==='l2k'?'Georgia,serif':'inherit',lineHeight:1.3}}>{dir==='k2l'?curr.k:curr.l}</div>
+      <div style={{fontSize:12,color:'#9ca3af'}}>{dir==='k2l'?'라틴어':'한국어'}로 직접 입력하세요</div>
+    </div>
+    <div key={sk} className={result==='wrong'?'shake':''} style={{position:'relative'}}>
+      <input ref={iRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){result?next():check();}}} disabled={!!result}
+        placeholder={dir==='k2l'?'라틴어 명칭 입력...':'한국어 명칭 입력...'}
+        style={{width:'100%',padding:'13px 16px',borderRadius:12,fontSize:15,fontFamily:dir==='k2l'?'Georgia,serif':'inherit',fontStyle:dir==='k2l'?'italic':'normal',border:`1.5px solid ${result==='correct'?'#86efac':result==='wrong'?'#fca5a5':'#e5e7eb'}`,background:result==='correct'?'#f0fdf4':result==='wrong'?'#fef2f2':'#fff',color:result==='correct'?'#166534':result==='wrong'?'#991b1b':'#111827',outline:'none',transition:'all .18s'}}/>
+      {result&&<span style={{position:'absolute',right:14,top:'50%',transform:'translateY(-50%)',fontSize:18}}>{result==='correct'?'✅':'❌'}</span>}
+    </div>
+    {result&&<div style={{display:'flex',flexDirection:'column',gap:8}}>
+      {result==='wrong'&&<div style={{padding:'11px 14px',background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:10,fontSize:14,color:'#991b1b',fontWeight:600}}>정답: <span style={{fontStyle:dir==='k2l'?'italic':'normal',fontFamily:dir==='k2l'?'Georgia,serif':'inherit'}}>{ca}</span></div>}
+      {result==='correct'&&<div style={{padding:'11px 14px',background:'#f0fdf4',border:'1px solid #86efac',borderRadius:10,fontSize:14,color:'#166534',fontWeight:600,textAlign:'center'}}>🎉 정답!</div>}
+      {curr.tip&&<IB text={`💡 ${curr.tip}`} bg='#fefce8' bd='#fde68a' tc='#92400e'/>}
+      {curr.story&&<IB text={`📖 ${curr.story}`} bg='#f0fdf4' bd='#bbf7d0' tc='#166534'/>}
+      <button onClick={next} style={{padding:13,borderRadius:12,border:'none',background:'#111827',color:'#fff',cursor:'pointer',fontSize:15,fontWeight:700,fontFamily:'inherit'}}>다음 문제 → (Enter)</button>
+    </div>}
+    {!result&&<button onClick={check} disabled={!input.trim()} style={{padding:13,borderRadius:12,border:'none',background:!input.trim()?'#e5e7eb':'#111827',color:!input.trim()?'#9ca3af':'#fff',cursor:!input.trim()?'default':'pointer',fontSize:15,fontWeight:700,fontFamily:'inherit'}}>확인 (Enter)</button>}
+  </div>);
 }
 
 // ── STATS ──
-function StatsMode({bones,stats,onClear}){
+function StatsMode({bones,cats,stats,onClear}){
   const [popup,setPopup]=useState(null);
   const entries=Object.entries(stats).map(([id,cnt])=>({bone:bones.find(b=>b.id===id),cnt})).filter(e=>e.bone).sort((a,b)=>b.cnt-a.cnt);
   const total=entries.reduce((s,e)=>s+e.cnt,0);
   const maxCnt=entries[0]?.cnt||1;
-  const catMap={};
-  entries.forEach(({bone,cnt})=>{if(!catMap[bone.cat])catMap[bone.cat]={cnt:0,n:0};catMap[bone.cat].cnt+=cnt;catMap[bone.cat].n+=1;});
+  const catMap={};entries.forEach(({bone,cnt})=>{if(!catMap[bone.cat])catMap[bone.cat]={cnt:0,n:0};catMap[bone.cat].cnt+=cnt;catMap[bone.cat].n+=1;});
   const catList=Object.entries(catMap).sort((a,b)=>b[1].cnt-a[1].cnt);
-  if(!entries.length)return(
-    <div style={{textAlign:"center",padding:"60px 20px"}}>
-      <div style={{fontSize:40,marginBottom:16}}>🎉</div>
-      <div style={{fontSize:18,fontWeight:800,color:"#111827",marginBottom:8}}>아직 틀린 문제가 없어요!</div>
-      <div style={{fontSize:14,color:"#9ca3af"}}>퀴즈를 풀면 통계가 쌓여요.</div>
+  if(!entries.length)return(<div style={{textAlign:'center',padding:'60px 20px'}}><div style={{fontSize:40,marginBottom:16}}>🎉</div><div style={{fontSize:18,fontWeight:800,marginBottom:8}}>아직 틀린 문제가 없어요!</div><div style={{fontSize:14,color:'#9ca3af'}}>퀴즈를 풀면 통계가 쌓여요.</div></div>);
+  return(<div style={{padding:14,display:'flex',flexDirection:'column',gap:18}}>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+      {[{label:'총 오답',value:total,color:'#ef4444'},{label:'취약 단어',value:`${entries.length}개`,color:'#f97316'},{label:'최다 오답',value:entries[0]?.bone.k,color:'#6366f1'}].map(({label,value,color})=>(
+        <div key={label} style={{padding:'13px 10px',background:'#f9fafb',border:`1px solid ${color}22`,borderRadius:12,textAlign:'center'}}>
+          <div style={{fontSize:10,color:'#9ca3af',marginBottom:4}}>{label}</div>
+          <div style={{fontSize:16,fontWeight:800,color}}>{value}</div>
+        </div>
+      ))}
     </div>
-  );
-  return(
-    <>
-      <div style={{display:"flex",flexDirection:"column",gap:20}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-          {[{label:"총 오답",value:total,color:"#ef4444"},{label:"취약 단어",value:`${entries.length}개`,color:"#f97316"},{label:"최다 오답",value:entries[0]?.bone.k,color:"#6366f1"}].map(({label,value,color})=>(
-            <div key={label} style={{padding:"14px 10px",background:"#f9fafb",border:`1px solid ${color}22`,borderRadius:12,textAlign:"center"}}>
-              <div style={{fontSize:10,color:"#9ca3af",marginBottom:4}}>{label}</div>
-              <div style={{fontSize:17,fontWeight:800,color}}>{value}</div>
-            </div>
-          ))}
+    <div>
+      <div style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:10}}>📊 취약 카테고리</div>
+      {catList.map(([cat,{cnt,n}])=>(
+        <div key={cat} style={{display:'flex',alignItems:'center',gap:10,marginBottom:7}}>
+          <div style={{width:6,height:6,borderRadius:'50%',background:catColor(cats,cat),flexShrink:0}}/>
+          <span style={{fontSize:13,fontWeight:600,color:'#374151',width:52,flexShrink:0}}>{cat}</span>
+          <div style={{flex:1,height:8,background:'#f3f4f6',borderRadius:4,overflow:'hidden'}}><div style={{width:`${(cnt/total)*100}%`,height:'100%',background:catColor(cats,cat),borderRadius:4}}/></div>
+          <span style={{fontSize:11,color:'#9ca3af',flexShrink:0}}>{cnt}회/{n}개</span>
         </div>
-        <div>
-          <div style={{fontSize:13,fontWeight:700,color:"#374151",marginBottom:10}}>📊 취약 카테고리</div>
-          <div style={{display:"flex",flexDirection:"column",gap:7}}>
-            {catList.map(([cat,{cnt,n}])=>(
-              <div key={cat} style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:6,height:6,borderRadius:"50%",background:CAT_COLOR[cat],flexShrink:0}}/>
-                <span style={{fontSize:13,fontWeight:600,color:"#374151",width:52,flexShrink:0}}>{cat}</span>
-                <div style={{flex:1,height:8,background:"#f3f4f6",borderRadius:4,overflow:"hidden"}}>
-                  <div style={{width:`${(cnt/total)*100}%`,height:"100%",background:CAT_COLOR[cat],borderRadius:4}}/>
-                </div>
-                <span style={{fontSize:11,color:"#9ca3af",flexShrink:0}}>{cnt}회/{n}개</span>
-              </div>
-            ))}
+      ))}
+    </div>
+    <div>
+      <div style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:10}}>🔴 자주 틀리는 단어</div>
+      {entries.map(({bone,cnt},i)=>(
+        <button key={bone.id} onClick={()=>setPopup(bone)} style={{width:'100%',padding:'12px 14px',borderRadius:12,border:'1px solid #e5e7eb',background:'#fff',cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:12,marginBottom:6,fontFamily:'inherit'}}>
+          <span style={{fontSize:14,fontWeight:800,color:'#9ca3af',width:22,textAlign:'center',flexShrink:0}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3,flexWrap:'wrap'}}><span style={{fontSize:15,fontWeight:700}}>{bone.k}</span><Tag label={bone.cat} color={catColor(cats,bone.cat)} small/></div>
+            <div style={{fontSize:11,color:'#9ca3af',fontStyle:'italic',fontFamily:'Georgia,serif'}}>{bone.l}</div>
           </div>
-        </div>
-        <div>
-          <div style={{fontSize:13,fontWeight:700,color:"#374151",marginBottom:10}}>🔴 자주 틀리는 단어</div>
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {entries.map(({bone,cnt},i)=>(
-              <button key={bone.id} onClick={()=>setPopup(bone)} style={{padding:"12px 14px",borderRadius:12,border:"1px solid #e5e7eb",background:"#fff",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-                <span style={{fontSize:14,fontWeight:800,color:"#9ca3af",width:22,textAlign:"center",flexShrink:0}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}`}</span>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,flexWrap:"wrap"}}>
-                    <span style={{fontSize:15,fontWeight:700,color:"#111827"}}>{bone.k}</span>
-                    <Tag label={bone.cat} color={CAT_COLOR[bone.cat]} small/>
-                  </div>
-                  <div style={{fontSize:11,color:"#9ca3af",fontStyle:"italic",fontFamily:"Georgia,serif"}}>{bone.l}</div>
-                </div>
-                <div style={{textAlign:"right",flexShrink:0}}>
-                  <div style={{fontSize:16,fontWeight:800,color:"#ef4444"}}>{cnt}회</div>
-                  <div style={{width:56,height:4,background:"#f3f4f6",borderRadius:2,marginTop:3}}>
-                    <div style={{width:`${(cnt/maxCnt)*100}%`,height:"100%",background:"#ef4444",borderRadius:2}}/>
-                  </div>
-                </div>
-              </button>
-            ))}
+          <div style={{textAlign:'right',flexShrink:0}}>
+            <div style={{fontSize:16,fontWeight:800,color:'#ef4444'}}>{cnt}회</div>
+            <div style={{width:56,height:4,background:'#f3f4f6',borderRadius:2,marginTop:3}}><div style={{width:`${(cnt/maxCnt)*100}%`,height:'100%',background:'#ef4444',borderRadius:2}}/></div>
           </div>
-        </div>
-        <button onClick={onClear} style={{padding:12,borderRadius:10,border:"1px solid #fca5a5",background:"#fff5f5",color:"#dc2626",cursor:"pointer",fontSize:13,fontWeight:600}}>🗑️ 통계 초기화</button>
-      </div>
-      <Modal bone={popup} onClose={()=>setPopup(null)}/>
-    </>
-  );
+        </button>
+      ))}
+    </div>
+    <button onClick={onClear} style={{padding:12,borderRadius:10,border:'1px solid #fca5a5',background:'#fff5f5',color:'#dc2626',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>🗑️ 통계 초기화</button>
+    {popup&&<Modal bone={popup} cats={cats} onClose={()=>setPopup(null)}/>}
+  </div>);
 }
 
 // ── WORD MANAGER ──
-const EMPTY_FORM={k:"",l:"",cat:"두개골",desc:"",tip:"",story:""};
-const ALL_CATS=["두개골","척주","흉곽","상지대","상지","하지대","하지"];
-const CAT_AXIAL={두개골:true,척주:true,흉곽:true,상지대:false,상지:false,하지대:false,하지:false};
-
-function WordManager({bones,setBones}){
-  const [form,setForm]=useState(EMPTY_FORM);
+function WordManager({bones,cats,setBones,setCats}){
+  const [editForm,setEditForm]=useState(null);
   const [editId,setEditId]=useState(null);
-  const [search,setSearch]=useState("");
+  const [search,setSearch]=useState('');
   const [confirm,setConfirm]=useState(null);
-  const [open,setOpen]=useState(false);
   const filtered=bones.filter(b=>b.k.includes(search)||b.l.toLowerCase().includes(search.toLowerCase())||b.cat.includes(search));
-  const inp={width:"100%",padding:"10px 12px",border:"1px solid #e5e7eb",borderRadius:10,fontSize:14,fontFamily:"inherit",outline:"none",background:"#fff",color:"#111827"};
-  const lbl={fontSize:11,fontWeight:700,color:"#6b7280",letterSpacing:1,marginBottom:5,display:"block"};
-  function startEdit(b){setEditId(b.id);setForm({k:b.k,l:b.l,cat:b.cat,desc:b.desc||"",tip:b.tip||"",story:b.story||""});setOpen(true);}
-  function cancel(){setEditId(null);setForm(EMPTY_FORM);setOpen(false);}
-  function save(){
-    if(!form.k.trim()||!form.l.trim())return;
-    if(editId){const u=bones.map(b=>b.id===editId?{...b,...form,axial:CAT_AXIAL[form.cat]}:b);setBones(u);saveBones(u);cancel();}
-    else{const u=[...bones,{id:"c_"+Date.now(),...form,axial:CAT_AXIAL[form.cat]}];setBones(u);saveBones(u);setForm(EMPTY_FORM);setOpen(false);}
-  }
-  function del(id){const u=bones.filter(b=>b.id!==id);setBones(u);saveBones(u);setConfirm(null);if(editId===id)cancel();}
-  function reset(){setBones(DEFAULT_BONES);saveBones(DEFAULT_BONES);cancel();setConfirm(null);}
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <div style={{display:"flex",gap:8}}>
-        <input style={{...inp,flex:1}} placeholder="🔍 검색" value={search} onChange={e=>setSearch(e.target.value)}/>
-        <button onClick={()=>{setEditId(null);setForm(EMPTY_FORM);setOpen(o=>!o);}} style={{padding:"10px 16px",borderRadius:10,border:"none",background:open?"#374151":"#111827",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700,whiteSpace:"nowrap"}}>{open?"닫기":"+ 추가"}</button>
-      </div>
-      {open&&(
-        <div style={{padding:18,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:14}}>
-          <div style={{fontSize:14,fontWeight:800,color:"#111827",marginBottom:14}}>{editId?"✏️ 수정":"➕ 새 단어"}</div>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <div style={{display:"flex",gap:10}}>
-              <div style={{flex:1}}><label style={lbl}>한국어 *</label><input style={inp} value={form.k} onChange={e=>setForm(f=>({...f,k:e.target.value}))}/></div>
-              <div style={{flex:1}}><label style={lbl}>라틴어 *</label><input style={inp} value={form.l} onChange={e=>setForm(f=>({...f,l:e.target.value}))}/></div>
-            </div>
-            <div><label style={lbl}>분류</label><select style={inp} value={form.cat} onChange={e=>setForm(f=>({...f,cat:e.target.value}))}>{ALL_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
-            <div><label style={lbl}>설명</label><textarea style={{...inp,resize:"vertical",minHeight:52}} value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))}/></div>
-            <div><label style={lbl}>암기 TIP</label><textarea style={{...inp,resize:"vertical",minHeight:48}} value={form.tip} onChange={e=>setForm(f=>({...f,tip:e.target.value}))}/></div>
-            <div><label style={lbl}>연상 스토리 📖</label><textarea style={{...inp,resize:"vertical",minHeight:60}} placeholder="기억에 남는 연상 이야기..." value={form.story} onChange={e=>setForm(f=>({...f,story:e.target.value}))}/></div>
-            <div style={{display:"flex",gap:8}}>
-              {editId&&<button onClick={cancel} style={{flex:1,padding:12,borderRadius:10,border:"1px solid #e5e7eb",background:"#fff",color:"#6b7280",cursor:"pointer",fontSize:14}}>취소</button>}
-              <button onClick={save} disabled={!form.k.trim()||!form.l.trim()} style={{flex:2,padding:12,borderRadius:10,border:"none",fontSize:14,fontWeight:700,cursor:"pointer",background:(!form.k.trim()||!form.l.trim())?"#e5e7eb":"#111827",color:(!form.k.trim()||!form.l.trim())?"#9ca3af":"#fff"}}>{editId?"저장":"추가"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-      <div style={{fontSize:12,color:"#9ca3af"}}>{filtered.length}개</div>
-      <div style={{display:"flex",flexDirection:"column",gap:6}}>
-        {filtered.map(b=>(
-          <div key={b.id} style={{padding:"12px 14px",borderRadius:12,border:`1px solid ${editId===b.id?"#111827":"#e5e7eb"}`,background:editId===b.id?"#f0f9ff":"#fff",display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:7,height:7,borderRadius:"50%",background:CAT_COLOR[b.cat],flexShrink:0}}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                <span style={{fontSize:14,fontWeight:700,color:"#111827"}}>{b.k}</span>
-                <Tag label={b.cat} color={CAT_COLOR[b.cat]} small/>
-                {!DEFAULT_BONES.find(d=>d.id===b.id)&&<Tag label="추가됨" color="#8b5cf6" small/>}
-              </div>
-              <div style={{fontSize:11,color:"#9ca3af",fontStyle:"italic",fontFamily:"Georgia,serif"}}>{b.l}</div>
-            </div>
-            <div style={{display:"flex",gap:6}}>
-              <button onClick={()=>startEdit(b)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid #e5e7eb",background:"#fff",color:"#374151",cursor:"pointer",fontSize:12}}>수정</button>
-              <button onClick={()=>setConfirm(b.id)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid #fca5a5",background:"#fff",color:"#dc2626",cursor:"pointer",fontSize:12}}>삭제</button>
-            </div>
-          </div>
-        ))}
-      </div>
-      <button onClick={()=>setConfirm("reset")} style={{padding:12,borderRadius:10,border:"1px solid #fca5a5",background:"#fff5f5",color:"#dc2626",cursor:"pointer",fontSize:13,fontWeight:600}}>🔄 기본값 초기화</button>
-      {confirm&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:20}}>
-          <div style={{background:"#fff",borderRadius:16,padding:24,width:"100%",maxWidth:300,textAlign:"center"}}>
-            <div style={{fontSize:28,marginBottom:10}}>{confirm==="reset"?"⚠️":"🗑️"}</div>
-            <div style={{fontSize:16,fontWeight:700,color:"#111827",marginBottom:8}}>{confirm==="reset"?"기본값으로 초기화?":"삭제할까요?"}</div>
-            <div style={{fontSize:13,color:"#6b7280",marginBottom:20}}>{confirm==="reset"?"추가한 단어가 모두 사라져요.":"삭제 후 되돌릴 수 없어요."}</div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setConfirm(null)} style={{flex:1,padding:12,borderRadius:10,border:"1px solid #e5e7eb",background:"#fff",color:"#374151",cursor:"pointer",fontSize:14}}>취소</button>
-              <button onClick={()=>confirm==="reset"?reset():del(confirm)} style={{flex:1,padding:12,borderRadius:10,border:"none",background:"#dc2626",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>확인</button>
-            </div>
-          </div>
-        </div>
-      )}
+  return(<div style={{padding:14,display:'flex',flexDirection:'column',gap:10}}>
+    <div style={{display:'flex',gap:8}}>
+      <input style={{...INP,flex:1}} placeholder='🔍 검색' value={search} onChange={e=>setSearch(e.target.value)}/>
+      <button onClick={()=>{setEditId(null);setEditForm({k:'',l:'',cat:cats[0]?.name||'두개골',desc:'',tip:'',story:''});}} style={{padding:'10px 16px',borderRadius:10,border:'none',background:'#111827',color:'#fff',cursor:'pointer',fontSize:14,fontWeight:700,fontFamily:'inherit',whiteSpace:'nowrap'}}>+ 추가</button>
     </div>
-  );
+    <div style={{fontSize:12,color:'#9ca3af'}}>{filtered.length}개</div>
+    <div style={{display:'flex',flexDirection:'column',gap:6,paddingBottom:80}}>
+      {filtered.map(b=>(
+        <div key={b.id} style={{padding:'12px 14px',borderRadius:12,border:'1px solid #e5e7eb',background:'#fff',display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:7,height:7,borderRadius:'50%',background:catColor(cats,b.cat),flexShrink:0}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><span style={{fontSize:14,fontWeight:700}}>{b.k}</span><Tag label={b.cat} color={catColor(cats,b.cat)} small/>{!DEFAULT_BONES.find(d=>d.id===b.id)&&<Tag label='추가됨' color='#8b5cf6' small/>}</div>
+            <div style={{fontSize:11,color:'#9ca3af',fontStyle:'italic',fontFamily:'Georgia,serif'}}>{b.l}</div>
+          </div>
+          <div style={{display:'flex',gap:5}}>
+            <button onClick={()=>{setEditId(b.id);setEditForm({k:b.k,l:b.l,cat:b.cat,desc:b.desc||'',tip:b.tip||'',story:b.story||''});}} style={{padding:'6px 12px',borderRadius:8,border:'1px solid #e5e7eb',background:'#fff',color:'#374151',cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>수정</button>
+            <button onClick={()=>setConfirm(b.id)} style={{padding:'6px 12px',borderRadius:8,border:'1px solid #fca5a5',background:'#fff',color:'#dc2626',cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>삭제</button>
+          </div>
+        </div>
+      ))}
+      <button onClick={()=>setConfirm('reset')} style={{padding:12,borderRadius:10,border:'1px solid #fca5a5',background:'#fff5f5',color:'#dc2626',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>🔄 기본값 초기화</button>
+    </div>
+    {editForm&&<BoneForm title={editId?'✏️ 수정':'➕ 새 단어'} init={editForm} cats={cats} onClose={()=>{setEditForm(null);setEditId(null);}} onNewCat={c=>setCats(p=>[...p,c])} onSave={f=>{const ax=catAxial(cats,f.cat);if(editId)setBones(b=>b.map(x=>x.id===editId?{...x,...f,axial:ax}:x));else setBones(b=>[...b,{id:'c_'+Date.now(),...f,axial:ax}]);setEditForm(null);setEditId(null);}}/>}
+    {confirm&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300,padding:20}}>
+      <div style={{background:'#fff',borderRadius:16,padding:24,width:'100%',maxWidth:300,textAlign:'center'}}>
+        <div style={{fontSize:28,marginBottom:10}}>{confirm==='reset'?'⚠️':'🗑️'}</div>
+        <div style={{fontSize:16,fontWeight:700,marginBottom:8}}>{confirm==='reset'?'기본값으로 초기화?':'삭제할까요?'}</div>
+        <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>{confirm==='reset'?'추가한 단어가 모두 사라져요.':'삭제 후 되돌릴 수 없어요.'}</div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>setConfirm(null)} style={{flex:1,padding:12,borderRadius:10,border:'1px solid #e5e7eb',background:'#fff',color:'#374151',cursor:'pointer',fontFamily:'inherit',fontSize:14}}>취소</button>
+          <button onClick={()=>{if(confirm==='reset')setBones(DEFAULT_BONES);else setBones(b=>b.filter(x=>x.id!==confirm));setConfirm(null);}} style={{flex:1,padding:12,borderRadius:10,border:'none',background:'#dc2626',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:700}}>확인</button>
+        </div>
+      </div>
+    </div>)}
+  </div>);
+}
+
+// ── CATEGORY MANAGER ──
+function CatManager({cats,setCats,bones}){
+  const [editCat,setEditCat]=useState(null);
+  const [showAdd,setShowAdd]=useState(false);
+  const [confirm,setConfirm]=useState(null);
+  const sorted=[...cats].sort((a,b)=>a.order-b.order);
+  function move(i,up){const list=[...sorted];const j=up?i-1:i+1;if(j<0||j>=list.length)return;[list[i],list[j]]=[list[j],list[i]];setCats(list.map((c,idx)=>({...c,order:idx})));}
+  function EditDlg({cat,isNew}){
+    const [name,setName]=useState(cat.name);
+    const [colorHex,setColorHex]=useState(cat.colorHex||COLOR_PALETTE[0]);
+    const [axial,setAxial]=useState(cat.axial);
+    return(<div onClick={()=>{setEditCat(null);setShowAdd(false);}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:520,background:'#fff',borderRadius:'20px 20px 0 0',padding:'8px 22px 36px',maxHeight:'88vh',overflowY:'auto',animation:'slideUp .22s ease'}}>
+        <div style={{width:36,height:4,background:'#e5e7eb',borderRadius:2,margin:'12px auto 14px'}}/>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>{isNew?'새 분류 추가':'분류 수정'}</div>
+        <FL t='이름 *'/><input style={{...INP,marginBottom:4}} value={name} onChange={e=>setName(e.target.value)} readOnly={!isNew}/>
+        {!isNew&&<div style={{fontSize:11,color:'#9ca3af',marginBottom:10}}>※ 이름은 변경할 수 없어요</div>}
+        <FL t='색상'/>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}><div style={{width:30,height:30,borderRadius:8,background:colorHex}}/><span style={{fontSize:12,color:'#6b7280',fontWeight:600}}>{colorHex}</span></div>
+        <div style={{display:'flex',gap:7,flexWrap:'wrap',marginBottom:12}}>
+          {COLOR_PALETTE.map(h=><div key={h} onClick={()=>setColorHex(h)} style={{width:28,height:28,borderRadius:7,background:h,cursor:'pointer',border:colorHex===h?'2.5px solid #111827':'2px solid transparent',display:'flex',alignItems:'center',justifyContent:'center'}}>{colorHex===h&&<span style={{color:'#fff',fontSize:11,fontWeight:800}}>✓</span>}</div>)}
+        </div>
+        <FL t='유형'/>
+        <div style={{display:'flex',gap:6,marginBottom:16}}>
+          {[true,false].map(v=><button key={String(v)} onClick={()=>setAxial(v)} style={{padding:'6px 14px',borderRadius:20,border:`1px solid ${axial===v?'#111827':'#e5e7eb'}`,background:axial===v?'#111827':'#fff',color:axial===v?'#fff':'#374151',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>{v?'축뼈대':'팔다리뼈대'}</button>)}
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>{setEditCat(null);setShowAdd(false);}} style={{flex:1,padding:12,borderRadius:10,border:'1px solid #e5e7eb',background:'#fff',color:'#6b7280',cursor:'pointer',fontFamily:'inherit',fontSize:14}}>취소</button>
+          <button onClick={()=>{if(!name.trim())return;if(isNew)setCats(p=>[...p,{name:name.trim(),colorHex,axial,order:cats.length}]);else setCats(p=>p.map(c=>c.name===cat.name?{...c,colorHex,axial}:c));setEditCat(null);setShowAdd(false);}} style={{flex:2,padding:12,borderRadius:10,border:'none',background:'#111827',color:'#fff',fontWeight:700,cursor:'pointer',fontFamily:'inherit',fontSize:14}}>저장</button>
+        </div>
+      </div>
+    </div>);
+  }
+  return(<div style={{padding:14,display:'flex',flexDirection:'column',gap:10}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <div style={{fontSize:15,fontWeight:800}}>분류 관리</div>
+      <button onClick={()=>setShowAdd(true)} style={{padding:'8px 14px',borderRadius:10,border:'none',background:'#111827',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:700,fontFamily:'inherit'}}>+ 추가</button>
+    </div>
+    <div style={{fontSize:12,color:'#9ca3af'}}>탭해서 색상 수정 / ▲▼로 순서 변경</div>
+    <div style={{display:'flex',flexDirection:'column',gap:8,paddingBottom:40}}>
+      {sorted.map((cat,i)=>{const bc=bones.filter(b=>b.cat===cat.name).length;return(
+        <div key={cat.name} style={{padding:'12px 14px',borderRadius:12,border:`1px solid ${cat.colorHex}33`,background:'#fff',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}} onClick={()=>setEditCat(cat)}>
+          <div style={{width:30,height:30,borderRadius:8,background:cat.colorHex,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><span style={{color:'#fff',fontSize:13,fontWeight:800}}>{cat.name[0]}</span></div>
+          <div style={{flex:1}}><div style={{fontSize:15,fontWeight:700}}>{cat.name}</div><div style={{fontSize:11,color:'#6b7280'}}>{cat.axial?'축뼈대':'팔다리뼈대'} · {bc}개 뼈</div></div>
+          <div style={{display:'flex',flexDirection:'column',gap:2}} onClick={e=>e.stopPropagation()}>
+            <button onClick={()=>move(i,true)} disabled={i===0} style={{width:26,height:26,borderRadius:6,border:'1px solid #e5e7eb',background:'#fff',cursor:i===0?'default':'pointer',color:i===0?'#d1d5db':'#374151',fontSize:12,fontFamily:'inherit'}}>▲</button>
+            <button onClick={()=>move(i,false)} disabled={i===sorted.length-1} style={{width:26,height:26,borderRadius:6,border:'1px solid #e5e7eb',background:'#fff',cursor:i===sorted.length-1?'default':'pointer',color:i===sorted.length-1?'#d1d5db':'#374151',fontSize:12,fontFamily:'inherit'}}>▼</button>
+          </div>
+          <button onClick={e=>{e.stopPropagation();setConfirm(cat.name);}} style={{padding:'6px 10px',borderRadius:8,border:'1px solid #fca5a5',background:'#fff',color:'#dc2626',cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>삭제</button>
+        </div>
+      );})}
+    </div>
+    {editCat&&<EditDlg cat={editCat} isNew={false}/>}
+    {showAdd&&<EditDlg cat={{name:'',colorHex:COLOR_PALETTE[0],axial:true,order:cats.length}} isNew={true}/>}
+    {confirm&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300,padding:20}}>
+      <div style={{background:'#fff',borderRadius:16,padding:24,width:'100%',maxWidth:300,textAlign:'center'}}>
+        <div style={{fontSize:28,marginBottom:10}}>🗑️</div>
+        <div style={{fontSize:16,fontWeight:700,marginBottom:8}}>'{confirm}' 삭제?</div>
+        <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>이 분류에 속한 단어 {bones.filter(b=>b.cat===confirm).length}개도 영향을 받아요.</div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>setConfirm(null)} style={{flex:1,padding:12,borderRadius:10,border:'1px solid #e5e7eb',background:'#fff',color:'#374151',cursor:'pointer',fontFamily:'inherit',fontSize:14}}>취소</button>
+          <button onClick={()=>{setCats(c=>c.filter(x=>x.name!==confirm));setConfirm(null);}} style={{flex:1,padding:12,borderRadius:10,border:'none',background:'#dc2626',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:700}}>삭제</button>
+        </div>
+      </div>
+    </div>)}
+  </div>);
+}
+
+// ── FIREBASE SETUP ──
+function FbSetup({onSave}){
+  const [raw,setRaw]=useState('');const [err,setErr]=useState('');
+  function save(){setErr('');try{let cfg;const c=raw.trim();if(c.startsWith('{'))cfg=JSON.parse(c);else{const m=c.match(/const\s+firebaseConfig\s*=\s*(\{[\s\S]*?\});/);if(m)cfg=eval('('+m[1]+')');else throw new Error('설정 형식을 인식할 수 없어요.');}if(!cfg.apiKey||!cfg.projectId)throw new Error('apiKey, projectId 필드가 필요해요.');onSave(cfg);}catch(e){setErr(e.message);}}
+  return(<div style={{minHeight:'100vh',background:'#f8fafc',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+    <div style={{width:'100%',maxWidth:480,background:'#fff',borderRadius:20,padding:28,boxShadow:'0 4px 24px rgba(0,0,0,0.08)'}}>
+      <div style={{fontSize:28,marginBottom:4}}>🔥</div>
+      <div style={{fontSize:20,fontWeight:900,marginBottom:4}}>Firebase 연결</div>
+      <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>단어·통계를 Google 계정에 저장하려면 Firebase 프로젝트가 필요해요.</div>
+      <div style={{fontSize:12,fontWeight:700,color:'#374151',letterSpacing:1,marginBottom:8}}>FIREBASE CONFIG 붙여넣기</div>
+      <textarea value={raw} onChange={e=>{setRaw(e.target.value);setErr('');}} placeholder={'{\n  "apiKey": "AIza...",\n  "authDomain": "...",\n  "projectId": "...",\n  ...\n}'} style={{width:'100%',minHeight:130,padding:12,border:`1.5px solid ${err?'#fca5a5':'#e5e7eb'}`,borderRadius:12,fontSize:12,fontFamily:'monospace',resize:'vertical',outline:'none',color:'#111827',background:'#f9fafb'}}/>
+      {err&&<div style={{fontSize:12,color:'#dc2626',marginTop:6,padding:'8px 12px',background:'#fef2f2',borderRadius:8}}>⚠️ {err}</div>}
+      <button onClick={save} disabled={!raw.trim()} style={{marginTop:12,width:'100%',padding:14,borderRadius:12,border:'none',fontSize:15,fontWeight:700,cursor:raw.trim()?'pointer':'default',background:raw.trim()?'#111827':'#e5e7eb',color:raw.trim()?'#fff':'#9ca3af',fontFamily:'inherit'}}>연결하기 →</button>
+      <div style={{marginTop:14,padding:'10px 14px',background:'#fefce8',border:'1px solid #fde68a',borderRadius:10,fontSize:12,color:'#92400e'}}>💡 Firebase 무료 플랜(Spark)으로 충분해요.</div>
+    </div>
+  </div>);
 }
 
 // ── MAIN ──
 function App(){
-  const [bones,setBones]=useState(()=>loadBones());
-  const [stats,setStats]=useState(()=>loadStats());
-  const [images,setImages]=useState(()=>loadImages());
-  const [mode,setMode]=useState("classify");
-  const addWrong=useCallback((id)=>{setStats(s=>{const n={...s,[id]:(s[id]||0)+1};saveStats(n);return n;});},[]);
-  const clearStats=()=>{setStats({});saveStats({});};
+  const [fbCfg,setFbCfg]=useState(getFbCfg);
+  const [user,setUser]=useState(null);
+  const [authLoading,setAuthLoading]=useState(false);
+  const [dataLoading,setDataLoading]=useState(false);
+  const [bones,setBones]=useState(DEFAULT_BONES);
+  const [cats,setCats]=useState(DEFAULT_CATEGORIES);
+  const [stats,setStats]=useState({});
+  const [imgUrls,setImgUrls]=useState({});
+  const [sync,setSync]=useState(null);
+  const [mode,setMode]=useState('classify');
+  const st=useRef(null);
+
+  function showSync(s){setSync(s);if(st.current)clearTimeout(st.current);if(s==='saved')st.current=setTimeout(()=>setSync(null),2000);}
+
+  useEffect(()=>{
+    if(!fbCfg)return;
+    if(!initFb(fbCfg)){localStorage.removeItem('fb_cfg');setFbCfg(null);return;}
+    setAuthLoading(true);
+    const unsub=_auth.onAuthStateChanged(async u=>{
+      setUser(u);setAuthLoading(false);
+      if(u){
+        setDataLoading(true);
+        const data=await dbLoad(u.uid);
+        if(data.bones?.length>0)setBones(data.bones);else await dbSave(u.uid,{bones:DEFAULT_BONES,stats:{},categories:DEFAULT_CATEGORIES});
+        if(data.stats)setStats(data.stats);
+        if(data.categories?.length>0)setCats(data.categories);
+        if(data.imageUrls)setImgUrls(data.imageUrls);
+        setDataLoading(false);
+      }
+    });
+    return unsub;
+  },[fbCfg]);
+
+  const saveBones=useCallback(updater=>{setBones(prev=>{const next=typeof updater==='function'?updater(prev):updater;(async()=>{showSync('saving');if(user)await dbSave(user.uid,{bones:next});showSync('saved');})();return next;});},[user]);
+  const saveCats=useCallback(updater=>{setCats(prev=>{const next=typeof updater==='function'?updater(prev):updater;(async()=>{showSync('saving');if(user)await dbSave(user.uid,{categories:next});showSync('saved');})();return next;});},[user]);
+  const addWrong=useCallback(id=>{setStats(s=>{const n={...s,[id]:(s[id]||0)+1};(async()=>{if(user)await dbSave(user.uid,{stats:n});})();return n;});},[user]);
+  const clearStats=()=>{setStats({});if(user)dbSave(user.uid,{stats:{}});};
+  const signIn=async()=>{const p=new firebase.auth.GoogleAuthProvider();try{await _auth.signInWithPopup(p);}catch{}};
+  const signOut=async()=>{await _auth.signOut();};
+  const resetCfg=()=>{if(confirm('Firebase 설정을 초기화할까요?')){localStorage.removeItem('fb_cfg');setFbCfg(null);}};
+
+  if(!fbCfg)return <FbSetup onSave={cfg=>{localStorage.setItem('fb_cfg',JSON.stringify(cfg));setFbCfg(cfg);}}/>;
+  if(dataLoading)return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f8fafc'}}><div style={{textAlign:'center'}}><div style={{fontSize:40,marginBottom:16}}>🦴</div><div style={{color:'#6b7280',fontSize:14}}>계정 데이터 불러오는 중...</div></div></div>;
+
   const wrongTotal=Object.values(stats).reduce((a,b)=>a+b,0);
-  const MODES=[
-    {id:"classify",label:"분류",icon:"📊"},
-    {id:"compare",label:"비교",icon:"⚡"},
-    {id:"flashcard",label:"카드",icon:"📇"},
-    {id:"quiz",label:"퀴즈",icon:"🎯"},
-    {id:"stats",label:"통계",icon:"📈",badge:wrongTotal>0?wrongTotal:null},
-    {id:"manage",label:"단어",icon:"✏️"},
-  ];
-  return(
-    <div style={{minHeight:"100vh",background:"#f8fafc",paddingBottom:68}}>
-      <div style={{borderBottom:"1px solid #e5e7eb",background:"#fff",padding:"12px 16px",position:"sticky",top:0,zIndex:50,boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}>
+  const MODES=[{id:'classify',label:'분류',icon:'📊'},{id:'compare',label:'비교',icon:'⚡'},{id:'flashcard',label:'카드',icon:'📇'},{id:'quiz',label:'퀴즈',icon:'🎯'},{id:'stats',label:'통계',icon:'📈',badge:wrongTotal>0?wrongTotal:null},{id:'manage',label:'단어',icon:'✏️'},{id:'catmgr',label:'분류관리',icon:'🗂️'}];
+
+  return(<div style={{minHeight:'100vh',background:'#f8fafc',paddingBottom:68}}>
+    {/* 헤더 */}
+    <div style={{borderBottom:'1px solid #e5e7eb',background:'#fff',padding:'10px 16px',position:'sticky',top:0,zIndex:50,boxShadow:'0 1px 3px rgba(0,0,0,0.05)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div>
         <div style={{fontSize:15,fontWeight:900,letterSpacing:-0.5}}>🦴 골격계 해부학</div>
-        <div style={{fontSize:10,color:"#9ca3af",letterSpacing:1.5,marginTop:1}}>SKELETAL ANATOMY · {bones.length}개 단어</div>
+        <div style={{fontSize:10,letterSpacing:1.5,marginTop:1,display:'flex',alignItems:'center',gap:6}}>
+          <span style={{color:'#9ca3af'}}>SKELETAL ANATOMY · {bones.length}개 단어</span>
+          {sync==='saving'&&<span style={{color:'#0ea5e9'}}>저장 중...</span>}
+          {sync==='saved'&&<span style={{color:'#16a34a'}}>✓ 저장됨</span>}
+        </div>
       </div>
-      <div style={{maxWidth:580,margin:"0 auto",padding:"18px 14px"}}>
-        {mode==="classify"&&<ClassificationMode bones={bones}/>}
-        {mode==="compare"&&<ComparisonMode bones={bones}/>}
-        {mode==="flashcard"&&<FlashcardMode bones={bones} images={images} setImages={setImages}/>}
-        {mode==="quiz"&&<QuizMode bones={bones} onWrong={addWrong}/>}
-        {mode==="stats"&&<StatsMode bones={bones} stats={stats} onClear={clearStats}/>}
-        {mode==="manage"&&<WordManager bones={bones} setBones={setBones}/>}
-      </div>
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#fff",borderTop:"1px solid #e5e7eb",display:"flex",zIndex:50,boxShadow:"0 -2px 12px rgba(0,0,0,0.06)"}}>
-        {MODES.map(m=>(
-          <button key={m.id} onClick={()=>setMode(m.id)} style={{flex:1,padding:"10px 2px 12px",border:"none",background:"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}}>
-            {mode===m.id&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:22,height:2,background:"#111827",borderRadius:1}}/>}
-            <span style={{fontSize:17}}>{m.icon}</span>
-            <span style={{fontSize:9,fontWeight:700,color:mode===m.id?"#111827":"#9ca3af",letterSpacing:0.3}}>{m.label}</span>
-            {m.badge&&<span style={{position:"absolute",top:5,right:"12%",background:"#ef4444",color:"#fff",fontSize:8,fontWeight:800,borderRadius:10,padding:"1px 4px",minWidth:14,textAlign:"center"}}>{m.badge>99?"99+":m.badge}</span>}
+      <div style={{display:'flex',alignItems:'center',gap:8}}>
+        {user&&<button onClick={resetCfg} style={{padding:'4px 8px',borderRadius:8,border:'1px solid #e5e7eb',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:10}}>🔧</button>}
+        {authLoading?<div style={{width:28,height:28}}/>
+        :user?<div style={{position:'relative'}}>
+          <button onClick={()=>{const m=document.getElementById('pm');m.style.display=m.style.display==='none'?'block':'none';}} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 10px',borderRadius:20,border:'1px solid #e5e7eb',background:'#f9fafb',cursor:'pointer',fontFamily:'inherit'}}>
+            {user.photoURL?<img src={user.photoURL} alt='' style={{width:22,height:22,borderRadius:'50%',objectFit:'cover'}}/>:<div style={{width:22,height:22,borderRadius:'50%',background:'#6366f1',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#fff'}}>{(user.displayName||'?')[0].toUpperCase()}</div>}
+            <span style={{fontSize:12,fontWeight:600,color:'#374151',maxWidth:80,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user.displayName?.split(' ')[0]||'사용자'}</span>
           </button>
-        ))}
+          <div id='pm' style={{display:'none',position:'absolute',right:0,top:'calc(100% + 6px)',background:'#fff',border:'1px solid #e5e7eb',borderRadius:12,boxShadow:'0 4px 16px rgba(0,0,0,0.1)',minWidth:160,zIndex:100}}>
+            <div style={{padding:'10px 14px',borderBottom:'1px solid #f3f4f6'}}><div style={{fontSize:12,fontWeight:700}}>{user.displayName}</div><div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>{user.email}</div></div>
+            <div style={{padding:'4px 6px'}}><button onClick={()=>{signOut();document.getElementById('pm').style.display='none';}} style={{width:'100%',padding:'9px 10px',borderRadius:8,border:'none',background:'transparent',color:'#dc2626',cursor:'pointer',fontSize:13,fontWeight:600,textAlign:'left',fontFamily:'inherit'}}>로그아웃</button></div>
+          </div>
+        </div>
+        :<button onClick={signIn} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 12px',borderRadius:20,border:'1px solid #e5e7eb',background:'#fff',cursor:'pointer',fontSize:12,fontWeight:700,color:'#374151',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+          <svg width='14' height='14' viewBox='0 0 24 24'><path fill='#4285F4' d='M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z'/><path fill='#34A853' d='M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z'/><path fill='#FBBC05' d='M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z'/><path fill='#EA4335' d='M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z'/></svg>
+          Google 로그인
+        </button>}
       </div>
     </div>
-  );
+    {!user&&!authLoading&&<div onClick={signIn} style={{background:'#fefce8',borderBottom:'1px solid #fde68a',padding:'10px 16px',cursor:'pointer',display:'flex',alignItems:'center',gap:8}}>
+      <span style={{fontSize:13}}>🔑</span>
+      <span style={{fontSize:13,color:'#92400e'}}>Google 로그인하면 단어·통계·이미지가 어느 기기에서나 저장돼요.</span>
+      <span style={{marginLeft:'auto',fontSize:13,fontWeight:700,color:'#d97706'}}>로그인 →</span>
+    </div>}
+    {/* 콘텐츠 */}
+    <div style={{maxWidth:580,margin:'0 auto'}}>
+      {mode==='classify'&&<ClassifyMode bones={bones} cats={cats} setBones={saveBones} setCats={saveCats}/>}
+      {mode==='compare'&&<CompareMode bones={bones} cats={cats}/>}
+      {mode==='flashcard'&&<FlashcardMode bones={bones} cats={cats} user={user} imgUrls={imgUrls} setImgUrls={setImgUrls}/>}
+      {mode==='quiz'&&<QuizMode bones={bones} cats={cats} onWrong={addWrong}/>}
+      {mode==='stats'&&<StatsMode bones={bones} cats={cats} stats={stats} onClear={clearStats}/>}
+      {mode==='manage'&&<WordManager bones={bones} cats={cats} setBones={saveBones} setCats={saveCats}/>}
+      {mode==='catmgr'&&<CatManager cats={cats} setCats={saveCats} bones={bones}/>}
+    </div>
+    {/* 하단 네비 */}
+    <div style={{position:'fixed',bottom:0,left:0,right:0,background:'#fff',borderTop:'1px solid #e5e7eb',display:'flex',zIndex:50,boxShadow:'0 -2px 12px rgba(0,0,0,0.06)'}}>
+      {MODES.map(m=>(
+        <button key={m.id} onClick={()=>setMode(m.id)} style={{flex:1,padding:'10px 2px 12px',border:'none',background:'transparent',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2,position:'relative',fontFamily:'inherit'}}>
+          {mode===m.id&&<div style={{position:'absolute',top:0,left:'50%',transform:'translateX(-50%)',width:22,height:2,background:'#111827',borderRadius:1}}/>}
+          <span style={{fontSize:16}}>{m.icon}</span>
+          <span style={{fontSize:8,fontWeight:700,color:mode===m.id?'#111827':'#9ca3af',letterSpacing:0.3}}>{m.label}</span>
+          {m.badge&&<span style={{position:'absolute',top:5,right:'8%',background:'#ef4444',color:'#fff',fontSize:8,fontWeight:800,borderRadius:10,padding:'1px 4px',minWidth:14,textAlign:'center'}}>{m.badge>99?'99+':m.badge}</span>}
+        </button>
+      ))}
+    </div>
+  </div>);
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>
