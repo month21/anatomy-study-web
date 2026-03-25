@@ -104,7 +104,7 @@ function catAxial(cats,name){const c=cats.find(c=>c.name===name);return c?c.axia
 let _db=null,_auth=null;
 function initFb(cfg){
   try{if(!firebase.apps.length)firebase.initializeApp(cfg);_db=firebase.firestore();_auth=firebase.auth();
-    _db.enablePersistence().catch(()=>{});return true;}catch{return false;}
+    return true;}catch{return false;}
 }
 function getFbCfg(){try{return JSON.parse(localStorage.getItem('fb_cfg'));}catch{return null;}}
 async function dbSave(uid,data){try{await _db.collection('users').doc(uid).set(data,{merge:true});}catch{}}
