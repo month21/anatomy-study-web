@@ -21,29 +21,6 @@
   </style>
 </head>
 <body>
-  <script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyC8Yxk5S7DD3neegMWVI0N746FN5J3DEfI",
-    authDomain: "anatomy-study.firebaseapp.com",
-    projectId: "anatomy-study",
-    storageBucket: "anatomy-study.firebasestorage.app",
-    messagingSenderId: "946492680321",
-    appId: "1:946492680321:web:692603d1c379a0a823c580",
-    measurementId: "G-L4XKQ6CJHB"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
 <div id="root"></div>
 <script type="text/babel">
 const {useState,useEffect,useCallback,useRef}=React;
@@ -87,13 +64,6 @@ const DEFAULT_BONES=[
   {id:'metatarsals',k:'중족골',l:'Metatarsals (5개)',axial:false,cat:'하지',desc:'발허리뼈 5개. 발바닥 형성',tip:'발바닥 5개 뼈!',story:'발바닥을 이루는 5개의 뼈.'},
   {id:'phalanges_f',k:'지골(발)',l:'Phalanges (발)',axial:false,cat:'하지',desc:'발가락뼈 14개. 보행에 특화',tip:'손과 동일 14개!',story:'손가락과 똑같이 14개!'},
 ];
-const PAIRS=[
-  {a:'radius',b:'ulna',note:'아래팔 두 뼈 — 위치로 구분'},{a:'tibia',b:'fibula',note:'하퇴 두 뼈 — 굵기·위치로 구분'},
-  {a:'carpals',b:'metacarpals',note:'손목 vs 손바닥'},{a:'tarsals',b:'metatarsals',note:'발목 vs 발바닥'},
-  {a:'cranium',b:'mandible',note:'두개골 — 고정 vs 움직임'},{a:'ilium',b:'ischium',note:'골반 — 위 vs 뒤아래'},
-  {a:'ischium',b:'pubis',note:'골반 — 앉을 때 vs 앞쪽'},{a:'cervical',b:'thoracic',note:'척추 — 목 vs 등'},
-  {a:'thoracic',b:'lumbar',note:'척추 — 등 vs 허리'},
-];
 
 function shuffle(a){const r=[...a];for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]];}return r;}
 function norm(s){return s.trim().toLowerCase().replace(/\s+/g,' ');}
@@ -104,7 +74,7 @@ function catAxial(cats,name){const c=cats.find(c=>c.name===name);return c?c.axia
 let _db=null,_auth=null;
 function initFb(cfg){
   try{if(!firebase.apps.length)firebase.initializeApp(cfg);_db=firebase.firestore();_auth=firebase.auth();
-    return true;}catch{return false;}
+  _db.enablePersistence().catch(()=>{});return true;}catch{return false;}
 }
 function getFbCfg(){try{return JSON.parse(localStorage.getItem('fb_cfg'));}catch{return null;}}
 async function dbSave(uid,data){try{await _db.collection('users').doc(uid).set(data,{merge:true});}catch{}}
@@ -125,7 +95,7 @@ const INP={width:'100%',padding:'10px 12px',border:'1px solid #e5e7eb',borderRad
 function FL({t}){return <div style={{fontSize:11,fontWeight:700,color:'#6b7280',letterSpacing:1,marginBottom:5}}>{t}</div>;}
 
 // ── BONE DETAIL MODAL ──
-function Modal({bone,cats,onClose}){
+function Modal({bone,cats,onClose,onEdit}){
   if(!bone)return null;
   const c=catColor(cats,bone.cat);
   return(
@@ -141,18 +111,30 @@ function Modal({bone,cats,onClose}){
         {bone.desc&&<div style={{fontSize:14,color:'#374151',lineHeight:1.8,marginBottom:10}}>{bone.desc}</div>}
         {bone.tip&&<div style={{marginBottom:8}}><IB text={`💡 ${bone.tip}`} bg='#fefce8' bd='#fde68a' tc='#92400e'/></div>}
         {bone.story&&<IB text={`📖 ${bone.story}`} bg='#f0fdf4' bd='#bbf7d0' tc='#166534'/>}
-        <button onClick={onClose} style={{marginTop:18,width:'100%',padding:14,borderRadius:12,border:'none',background:'#111827',color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>닫기</button>
+        <div style={{display:'flex',gap:8,marginTop:18}}>
+          {onEdit&&<button onClick={()=>{onClose();onEdit(bone);}} style={{flex:1,padding:14,borderRadius:12,border:'1px solid #e5e7eb',background:'#f9fafb',color:'#374151',fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>✏️ 수정</button>}
+          <button onClick={onClose} style={{flex:2,padding:14,borderRadius:12,border:'none',background:'#111827',color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>닫기</button>
+        </div>
       </div>
     </div>
   );
 }
 
 // ── BONE FORM ──
+// [수정] axial 토글 추가 - 축뼈대/팔다리뼈대 직접 선택 가능
 function BoneForm({title,init,cats,onClose,onSave,onNewCat}){
-  const [f,setF]=useState(init||{k:'',l:'',cat:cats[0]?.name||'두개골',desc:'',tip:'',story:''});
+  const initAxial = init ? (init.axial !== undefined ? init.axial : catAxial(cats, init.cat || cats[0]?.name)) : true;
+  const [f,setF]=useState(init||{k:'',l:'',cat:cats[0]?.name||'두개골',desc:'',tip:'',story:'',axial:initAxial});
   const [showNC,setShowNC]=useState(false);
   const [nc,setNc]=useState({name:'',colorHex:COLOR_PALETTE[0],axial:true});
   const sorted=[...cats].sort((a,b)=>a.order-b.order);
+
+  // 카테고리 변경 시 axial 자동 반영 (수동 오버라이드 가능)
+  function handleCatChange(catName){
+    const ax=catAxial(cats,catName);
+    setF(x=>({...x,cat:catName,axial:ax}));
+  }
+
   return(
     <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
       <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:520,background:'#fff',borderRadius:'20px 20px 0 0',padding:'8px 22px 36px',maxHeight:'92vh',overflowY:'auto',animation:'slideUp .22s ease'}}>
@@ -162,9 +144,24 @@ function BoneForm({title,init,cats,onClose,onSave,onNewCat}){
           <div style={{flex:1}}><FL t='한국어 *'/><input style={INP} value={f.k} onChange={e=>setF(x=>({...x,k:e.target.value}))}/></div>
           <div style={{flex:1}}><FL t='라틴어 *'/><input style={INP} value={f.l} onChange={e=>setF(x=>({...x,l:e.target.value}))}/></div>
         </div>
+
+        {/* [신규] 뼈대 유형 직접 선택 */}
+        <FL t='뼈대 유형 ✦'/>
+        <div style={{display:'flex',gap:6,marginBottom:12}}>
+          {[true,false].map(v=>(
+            <button key={String(v)} onClick={()=>setF(x=>({...x,axial:v}))}
+              style={{flex:1,padding:'8px 0',borderRadius:10,border:`1.5px solid ${f.axial===v?(v?'#0ea5e9':'#f97316'):'#e5e7eb'}`,
+              background:f.axial===v?(v?'#f0f9ff':'#fff7ed'):'#fff',
+              color:f.axial===v?(v?'#0369a1':'#c2410c'):'#9ca3af',
+              cursor:'pointer',fontSize:13,fontWeight:700,fontFamily:'inherit',transition:'all .18s'}}>
+              {v?'🦴 축뼈대':'💪 팔다리뼈대'}
+            </button>
+          ))}
+        </div>
+
         <FL t='분류'/>
         <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
-          {sorted.map(c=><button key={c.name} onClick={()=>setF(x=>({...x,cat:c.name}))} style={{padding:'6px 12px',borderRadius:20,border:`1px solid ${f.cat===c.name?c.colorHex:'#e5e7eb'}`,background:f.cat===c.name?c.colorHex:'#fff',color:f.cat===c.name?'#fff':'#374151',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>{c.name}</button>)}
+          {sorted.map(c=><button key={c.name} onClick={()=>handleCatChange(c.name)} style={{padding:'6px 12px',borderRadius:20,border:`1px solid ${f.cat===c.name?c.colorHex:'#e5e7eb'}`,background:f.cat===c.name?c.colorHex:'#fff',color:f.cat===c.name?'#fff':'#374151',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>{c.name}</button>)}
           <button onClick={()=>setShowNC(s=>!s)} style={{padding:'6px 12px',borderRadius:20,border:`1px solid ${showNC?'#111827':'#e5e7eb'}`,background:showNC?'#111827':'#fff',color:showNC?'#fff':'#374151',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>+ 새 분류</button>
         </div>
         {showNC&&<div style={{padding:12,background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:12,marginBottom:10}} className='fadeIn'>
@@ -177,11 +174,11 @@ function BoneForm({title,init,cats,onClose,onSave,onNewCat}){
           <div style={{display:'flex',gap:6,marginBottom:8}}>
             {[true,false].map(v=><button key={String(v)} onClick={()=>setNc(n=>({...n,axial:v}))} style={{padding:'5px 12px',borderRadius:20,border:`1px solid ${nc.axial===v?'#111827':'#e5e7eb'}`,background:nc.axial===v?'#111827':'#fff',color:nc.axial===v?'#fff':'#374151',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit'}}>{v?'축뼈대':'팔다리뼈대'}</button>)}
           </div>
-          <button onClick={()=>{if(!nc.name.trim())return;const cat={...nc,name:nc.name.trim(),order:cats.length};onNewCat(cat);setF(x=>({...x,cat:cat.name}));setShowNC(false);setNc({name:'',colorHex:COLOR_PALETTE[0],axial:true});}} disabled={!nc.name.trim()} style={{width:'100%',padding:9,borderRadius:10,border:'none',background:nc.name.trim()?'#111827':'#e5e7eb',color:nc.name.trim()?'#fff':'#9ca3af',fontWeight:700,cursor:nc.name.trim()?'pointer':'default',fontFamily:'inherit',fontSize:13}}>분류 추가</button>
+          <button onClick={()=>{if(!nc.name.trim())return;const cat={...nc,name:nc.name.trim(),order:cats.length};onNewCat(cat);setF(x=>({...x,cat:cat.name,axial:cat.axial}));setShowNC(false);setNc({name:'',colorHex:COLOR_PALETTE[0],axial:true});}} disabled={!nc.name.trim()} style={{width:'100%',padding:9,borderRadius:10,border:'none',background:nc.name.trim()?'#111827':'#e5e7eb',color:nc.name.trim()?'#fff':'#9ca3af',fontWeight:700,cursor:nc.name.trim()?'pointer':'default',fontFamily:'inherit',fontSize:13}}>분류 추가</button>
         </div>}
         <FL t='설명'/><textarea style={{...INP,resize:'vertical',minHeight:50,marginBottom:8}} value={f.desc} onChange={e=>setF(x=>({...x,desc:e.target.value}))}/>
         <FL t='암기 TIP'/><textarea style={{...INP,resize:'vertical',minHeight:46,marginBottom:8}} value={f.tip} onChange={e=>setF(x=>({...x,tip:e.target.value}))}/>
-        <FL t='연상 스토리 📖'/><textarea style={{...INP,resize:'vertical',minHeight:58,marginBottom:14}} placeholder='기억에 남는 연상 이야기...' value={f.story} onChange={e=>setF(x=>({...x,story:e.target.value}))}/>
+        <FL t='연상 스토리 📖'/><textarea style={{...INP,resize:'vertical',minHeight:58,marginBottom:14}} placeholder='기억에 남는 연상 이야기…' value={f.story} onChange={e=>setF(x=>({...x,story:e.target.value}))}/>
         <div style={{display:'flex',gap:8}}>
           <button onClick={onClose} style={{flex:1,padding:12,borderRadius:10,border:'1px solid #e5e7eb',background:'#fff',color:'#6b7280',cursor:'pointer',fontFamily:'inherit',fontSize:14}}>취소</button>
           <button onClick={()=>{if(f.k.trim()&&f.l.trim())onSave(f);}} disabled={!f.k.trim()||!f.l.trim()} style={{flex:2,padding:12,borderRadius:10,border:'none',fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',background:(!f.k.trim()||!f.l.trim())?'#e5e7eb':'#111827',color:(!f.k.trim()||!f.l.trim())?'#9ca3af':'#fff'}}>저장</button>
@@ -191,14 +188,16 @@ function BoneForm({title,init,cats,onClose,onSave,onNewCat}){
   );
 }
 
-// ── CLASSIFY ──
+// ── CLASSIFY ── [수정] 각 뼈에 편집 버튼 추가
 function ClassifyMode({bones,cats,setBones,setCats}){
   const [popup,setPopup]=useState(null);
+  const [editBone,setEditBone]=useState(null);
   const [axOpen,setAxOpen]=useState(false);
   const [apOpen,setApOpen]=useState(false);
   const [showAdd,setShowAdd]=useState(false);
   const sorted=[...cats].sort((a,b)=>a.order-b.order);
   const axCats=sorted.filter(c=>c.axial),apCats=sorted.filter(c=>!c.axial);
+
   function Hdr({title,cnt,catCnt,accent,open,onToggle}){return(
     <div onClick={onToggle} style={{display:'flex',alignItems:'center',gap:12,padding:'14px 16px',cursor:'pointer',background:'#fff',borderBottom:'1px solid #f3f4f6',userSelect:'none'}}>
       <div style={{width:4,height:38,borderRadius:2,background:accent,flexShrink:0}}/>
@@ -206,6 +205,7 @@ function ClassifyMode({bones,cats,setBones,setCats}){
       <span style={{fontSize:18,color:'#9ca3af',transition:'transform .22s',transform:open?'rotate(180deg)':'none'}}>▼</span>
     </div>
   );}
+
   function CatGrp({cat}){
     const cc=catColor(cats,cat.name);
     const grp=bones.filter(b=>b.cat===cat.name);
@@ -215,13 +215,23 @@ function ClassifyMode({bones,cats,setBones,setCats}){
         <span style={{fontSize:9,fontWeight:700,letterSpacing:1.5,color:cc}}>{cat.name.toUpperCase()}</span>
         <div style={{flex:1,height:1,background:'#f3f4f6'}}/>
       </div>
-      {grp.map(b=><div key={b.id} onClick={()=>setPopup(b)} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,cursor:'pointer',marginBottom:3,background:cc+'08',border:`1px solid ${cc}18`}}>
-        <div style={{width:6,height:6,borderRadius:'50%',background:cc,flexShrink:0}}/>
-        <span style={{fontSize:13,fontWeight:600,color:'#1f2937',flex:1}}>{b.k}</span>
-        <span style={{fontSize:10,color:'#9ca3af',fontStyle:'italic',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:90}}>{b.l.split('(')[0].trim()}</span>
-      </div>)}
+      {grp.map(b=>(
+        <div key={b.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,marginBottom:3,background:cc+'08',border:`1px solid ${cc}18`}}>
+          <div onClick={()=>setPopup(b)} style={{display:'flex',alignItems:'center',gap:8,flex:1,cursor:'pointer',minWidth:0}}>
+            <div style={{width:6,height:6,borderRadius:'50%',background:cc,flexShrink:0}}/>
+            <span style={{fontSize:13,fontWeight:600,color:'#1f2937',flex:1}}>{b.k}</span>
+            <span style={{fontSize:10,color:'#9ca3af',fontStyle:'italic',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:80}}>{b.l.split('(')[0].trim()}</span>
+          </div>
+          {/* [신규] 인라인 편집 버튼 */}
+          <button onClick={e=>{e.stopPropagation();setEditBone(b);}}
+            style={{padding:'3px 8px',borderRadius:6,border:'1px solid #e5e7eb',background:'#fff',color:'#6b7280',cursor:'pointer',fontSize:11,flexShrink:0,fontFamily:'inherit'}}>
+            ✏️
+          </button>
+        </div>
+      ))}
     </div>);
   }
+
   return(<>
     <div style={{paddingBottom:80}}>
       <Hdr title='축뼈대' cnt={bones.filter(b=>axCats.some(c=>c.name===b.cat)).length} catCnt={axCats.length} accent='#0ea5e9' open={axOpen} onToggle={()=>setAxOpen(o=>!o)}/>
@@ -231,34 +241,10 @@ function ClassifyMode({bones,cats,setBones,setCats}){
       {apOpen&&<div className='fadeIn'>{apCats.map(c=><CatGrp key={c.name} cat={c}/>)}<div style={{height:8}}/></div>}
     </div>
     <button onClick={()=>setShowAdd(true)} style={{position:'fixed',bottom:76,right:16,background:'#111827',color:'#fff',border:'none',borderRadius:16,padding:'11px 18px',cursor:'pointer',fontSize:13,fontWeight:700,display:'flex',alignItems:'center',gap:6,boxShadow:'0 4px 20px rgba(0,0,0,0.2)',fontFamily:'inherit',zIndex:40}}>＋ 단어 추가</button>
-    {popup&&<Modal bone={popup} cats={cats} onClose={()=>setPopup(null)}/>}
-    {showAdd&&<BoneForm title='➕ 새 단어' cats={cats} onClose={()=>setShowAdd(false)} onNewCat={c=>setCats(p=>[...p,c])} onSave={f=>{const ax=catAxial(cats,f.cat);setBones(b=>[...b,{id:'c_'+Date.now(),...f,axial:ax}]);setShowAdd(false);}}/>}
+    {popup&&<Modal bone={popup} cats={cats} onClose={()=>setPopup(null)} onEdit={b=>{setEditBone(b);}}/>}
+    {showAdd&&<BoneForm title='➕ 새 단어' cats={cats} onClose={()=>setShowAdd(false)} onNewCat={c=>setCats(p=>[...p,c])} onSave={f=>{setBones(b=>[...b,{id:'c_'+Date.now(),...f}]);setShowAdd(false);}}/>}
+    {editBone&&<BoneForm title='✏️ 수정' init={editBone} cats={cats} onClose={()=>setEditBone(null)} onNewCat={c=>setCats(p=>[...p,c])} onSave={f=>{setBones(b=>b.map(x=>x.id===editBone.id?{...x,...f}:x));setEditBone(null);}}/>}
   </>);
-}
-
-// ── COMPARE ──
-function CompareMode({bones,cats}){
-  const [idx,setIdx]=useState(0);
-  const vp=PAIRS.filter(p=>bones.find(b=>b.id===p.a)&&bones.find(b=>b.id===p.b));
-  if(!vp.length)return <div style={{padding:40,textAlign:'center',color:'#9ca3af'}}>비교할 쌍이 없습니다.</div>;
-  const pair=vp[idx%vp.length];
-  const bA=bones.find(b=>b.id===pair.a),bB=bones.find(b=>b.id===pair.b);
-  function Card({bone}){const c=catColor(cats,bone.cat);return(
-    <div style={{padding:14,borderRadius:12,border:`1.5px solid ${c}33`,background:`${c}06`,marginBottom:10}}>
-      <Tag label={bone.cat} color={c} small/><div style={{fontSize:20,fontWeight:800,margin:'8px 0 3px'}}>{bone.k}</div>
-      <div style={{fontSize:11,color:'#9ca3af',fontStyle:'italic',marginBottom:8}}>{bone.l}</div>
-      <div style={{fontSize:13,color:'#374151',lineHeight:1.7,marginBottom:8}}>{bone.desc}</div>
-      {bone.tip&&<div style={{marginBottom:8}}><IB text={`💡 ${bone.tip}`} bg='#fefce8' bd='#fde68a' tc='#92400e'/></div>}
-      {bone.story&&<IB text={`📖 ${bone.story}`} bg='#f0fdf4' bd='#bbf7d0' tc='#166534'/>}
-    </div>
-  );}
-  return(<div style={{padding:14}}>
-    <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:14}}>
-      {vp.map((p,i)=>{const a=bones.find(b=>b.id===p.a),bb=bones.find(b=>b.id===p.b);return <button key={i} onClick={()=>setIdx(i)} style={{padding:'6px 11px',borderRadius:16,border:`1px solid ${i===idx%vp.length?'#111827':'#e5e7eb'}`,background:i===idx%vp.length?'#111827':'#fff',color:i===idx%vp.length?'#fff':'#374151',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',whiteSpace:'nowrap'}}>{a.k} vs {bb.k}</button>;})}
-    </div>
-    <div style={{padding:'9px 14px',background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:8,fontSize:13,color:'#0369a1',marginBottom:14,fontWeight:600}}>⚡ {pair.note}</div>
-    <Card bone={bA}/><div style={{textAlign:'center',color:'#d1d5db',fontSize:16,margin:'4px 0'}}>vs</div><Card bone={bB}/>
-  </div>);
 }
 
 // ── FLASHCARD ──
@@ -327,7 +313,7 @@ function FlashcardMode({bones,cats,user,imgUrls,setImgUrls}){
       {imgPos!=='none'&&<div style={{display:'flex',gap:8,width:'100%'}}>
         <input ref={fRef} type='file' accept='image/*' style={{display:'none'}} onChange={handleUpload}/>
         <button onClick={()=>fRef.current.click()} disabled={uploading} style={{flex:1,padding:10,borderRadius:10,border:'1.5px dashed #0ea5e9',background:'#f0f9ff',color:'#0369a1',cursor:uploading?'default':'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>
-          {uploading?'업로드 중...':(imgUrl?'🔄 이미지 교체':'📷 이미지 추가')}
+          {uploading?'업로드 중…':(imgUrl?'🔄 이미지 교체':'📷 이미지 추가')}
         </button>
         {imgUrl&&<button onClick={removeImg} style={{padding:'10px 14px',borderRadius:10,border:'1px solid #fca5a5',background:'#fff5f5',color:'#dc2626',cursor:'pointer',fontSize:13}}>🗑</button>}
       </div>}
@@ -430,8 +416,8 @@ function InputQ({bones,cats,onWrong}){
   </div>);
 }
 
-// ── STATS ──
-function StatsMode({bones,cats,stats,onClear}){
+// ── STATS ── [수정] 초기화 버튼 제거 (비번 모달로 이동)
+function StatsMode({bones,cats,stats}){
   const [popup,setPopup]=useState(null);
   const entries=Object.entries(stats).map(([id,cnt])=>({bone:bones.find(b=>b.id===id),cnt})).filter(e=>e.bone).sort((a,b)=>b.cnt-a.cnt);
   const total=entries.reduce((s,e)=>s+e.cnt,0);
@@ -475,12 +461,14 @@ function StatsMode({bones,cats,stats,onClear}){
         </button>
       ))}
     </div>
-    <button onClick={onClear} style={{padding:12,borderRadius:10,border:'1px solid #fca5a5',background:'#fff5f5',color:'#dc2626',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>🗑️ 통계 초기화</button>
+    <div style={{padding:'10px 14px',background:'#fefce8',border:'1px solid #fde68a',borderRadius:10,fontSize:12,color:'#92400e',textAlign:'center'}}>
+      💡 초기화는 로고를 3번 탭하면 나타나는 메뉴에서 할 수 있어요
+    </div>
     {popup&&<Modal bone={popup} cats={cats} onClose={()=>setPopup(null)}/>}
   </div>);
 }
 
-// ── WORD MANAGER ──
+// ── WORD MANAGER ── [수정] 기본값 초기화 버튼 제거
 function WordManager({bones,cats,setBones,setCats}){
   const [editForm,setEditForm]=useState(null);
   const [editId,setEditId]=useState(null);
@@ -490,10 +478,10 @@ function WordManager({bones,cats,setBones,setCats}){
   return(<div style={{padding:14,display:'flex',flexDirection:'column',gap:10}}>
     <div style={{display:'flex',gap:8}}>
       <input style={{...INP,flex:1}} placeholder='🔍 검색' value={search} onChange={e=>setSearch(e.target.value)}/>
-      <button onClick={()=>{setEditId(null);setEditForm({k:'',l:'',cat:cats[0]?.name||'두개골',desc:'',tip:'',story:''});}} style={{padding:'10px 16px',borderRadius:10,border:'none',background:'#111827',color:'#fff',cursor:'pointer',fontSize:14,fontWeight:700,fontFamily:'inherit',whiteSpace:'nowrap'}}>+ 추가</button>
+      <button onClick={()=>{setEditId(null);setEditForm({k:'',l:'',cat:cats[0]?.name||'두개골',desc:'',tip:'',story:'',axial:true});}} style={{padding:'10px 16px',borderRadius:10,border:'none',background:'#111827',color:'#fff',cursor:'pointer',fontSize:14,fontWeight:700,fontFamily:'inherit',whiteSpace:'nowrap'}}>+ 추가</button>
     </div>
     <div style={{fontSize:12,color:'#9ca3af'}}>{filtered.length}개</div>
-    <div style={{display:'flex',flexDirection:'column',gap:6,paddingBottom:80}}>
+    <div style={{display:'flex',flexDirection:'column',gap:6,paddingBottom:40}}>
       {filtered.map(b=>(
         <div key={b.id} style={{padding:'12px 14px',borderRadius:12,border:'1px solid #e5e7eb',background:'#fff',display:'flex',alignItems:'center',gap:10}}>
           <div style={{width:7,height:7,borderRadius:'50%',background:catColor(cats,b.cat),flexShrink:0}}/>
@@ -502,22 +490,21 @@ function WordManager({bones,cats,setBones,setCats}){
             <div style={{fontSize:11,color:'#9ca3af',fontStyle:'italic',fontFamily:'Georgia,serif'}}>{b.l}</div>
           </div>
           <div style={{display:'flex',gap:5}}>
-            <button onClick={()=>{setEditId(b.id);setEditForm({k:b.k,l:b.l,cat:b.cat,desc:b.desc||'',tip:b.tip||'',story:b.story||''});}} style={{padding:'6px 12px',borderRadius:8,border:'1px solid #e5e7eb',background:'#fff',color:'#374151',cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>수정</button>
+            <button onClick={()=>{setEditId(b.id);setEditForm({k:b.k,l:b.l,cat:b.cat,desc:b.desc||'',tip:b.tip||'',story:b.story||'',axial:b.axial});}} style={{padding:'6px 12px',borderRadius:8,border:'1px solid #e5e7eb',background:'#fff',color:'#374151',cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>수정</button>
             <button onClick={()=>setConfirm(b.id)} style={{padding:'6px 12px',borderRadius:8,border:'1px solid #fca5a5',background:'#fff',color:'#dc2626',cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>삭제</button>
           </div>
         </div>
       ))}
-      <button onClick={()=>setConfirm('reset')} style={{padding:12,borderRadius:10,border:'1px solid #fca5a5',background:'#fff5f5',color:'#dc2626',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'}}>🔄 기본값 초기화</button>
     </div>
-    {editForm&&<BoneForm title={editId?'✏️ 수정':'➕ 새 단어'} init={editForm} cats={cats} onClose={()=>{setEditForm(null);setEditId(null);}} onNewCat={c=>setCats(p=>[...p,c])} onSave={f=>{const ax=catAxial(cats,f.cat);if(editId)setBones(b=>b.map(x=>x.id===editId?{...x,...f,axial:ax}:x));else setBones(b=>[...b,{id:'c_'+Date.now(),...f,axial:ax}]);setEditForm(null);setEditId(null);}}/>}
+    {editForm&&<BoneForm title={editId?'✏️ 수정':'➕ 새 단어'} init={editForm} cats={cats} onClose={()=>{setEditForm(null);setEditId(null);}} onNewCat={c=>setCats(p=>[...p,c])} onSave={f=>{if(editId)setBones(b=>b.map(x=>x.id===editId?{...x,...f}:x));else setBones(b=>[...b,{id:'c_'+Date.now(),...f}]);setEditForm(null);setEditId(null);}}/>}
     {confirm&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300,padding:20}}>
       <div style={{background:'#fff',borderRadius:16,padding:24,width:'100%',maxWidth:300,textAlign:'center'}}>
-        <div style={{fontSize:28,marginBottom:10}}>{confirm==='reset'?'⚠️':'🗑️'}</div>
-        <div style={{fontSize:16,fontWeight:700,marginBottom:8}}>{confirm==='reset'?'기본값으로 초기화?':'삭제할까요?'}</div>
-        <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>{confirm==='reset'?'추가한 단어가 모두 사라져요.':'삭제 후 되돌릴 수 없어요.'}</div>
+        <div style={{fontSize:28,marginBottom:10}}>🗑️</div>
+        <div style={{fontSize:16,fontWeight:700,marginBottom:8}}>삭제할까요?</div>
+        <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>삭제 후 되돌릴 수 없어요.</div>
         <div style={{display:'flex',gap:8}}>
           <button onClick={()=>setConfirm(null)} style={{flex:1,padding:12,borderRadius:10,border:'1px solid #e5e7eb',background:'#fff',color:'#374151',cursor:'pointer',fontFamily:'inherit',fontSize:14}}>취소</button>
-          <button onClick={()=>{if(confirm==='reset')setBones(DEFAULT_BONES);else setBones(b=>b.filter(x=>x.id!==confirm));setConfirm(null);}} style={{flex:1,padding:12,borderRadius:10,border:'none',background:'#dc2626',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:700}}>확인</button>
+          <button onClick={()=>{setBones(b=>b.filter(x=>x.id!==confirm));setConfirm(null);}} style={{flex:1,padding:12,borderRadius:10,border:'none',background:'#dc2626',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:700}}>삭제</button>
         </div>
       </div>
     </div>)}
@@ -562,12 +549,12 @@ function CatManager({cats,setCats,bones}){
       <div style={{fontSize:15,fontWeight:800}}>분류 관리</div>
       <button onClick={()=>setShowAdd(true)} style={{padding:'8px 14px',borderRadius:10,border:'none',background:'#111827',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:700,fontFamily:'inherit'}}>+ 추가</button>
     </div>
-    <div style={{fontSize:12,color:'#9ca3af'}}>탭해서 색상 수정 / ▲▼로 순서 변경</div>
+    <div style={{fontSize:12,color:'#9ca3af'}}>탭해서 색상·유형 수정 / ▲▼로 순서 변경</div>
     <div style={{display:'flex',flexDirection:'column',gap:8,paddingBottom:40}}>
       {sorted.map((cat,i)=>{const bc=bones.filter(b=>b.cat===cat.name).length;return(
         <div key={cat.name} style={{padding:'12px 14px',borderRadius:12,border:`1px solid ${cat.colorHex}33`,background:'#fff',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}} onClick={()=>setEditCat(cat)}>
           <div style={{width:30,height:30,borderRadius:8,background:cat.colorHex,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><span style={{color:'#fff',fontSize:13,fontWeight:800}}>{cat.name[0]}</span></div>
-          <div style={{flex:1}}><div style={{fontSize:15,fontWeight:700}}>{cat.name}</div><div style={{fontSize:11,color:'#6b7280'}}>{cat.axial?'축뼈대':'팔다리뼈대'} · {bc}개 뼈</div></div>
+          <div style={{flex:1}}><div style={{fontSize:15,fontWeight:700}}>{cat.name}</div><div style={{fontSize:11,color:'#6b7280'}}>{cat.axial?'🦴 축뼈대':'💪 팔다리뼈대'} · {bc}개 뼈</div></div>
           <div style={{display:'flex',flexDirection:'column',gap:2}} onClick={e=>e.stopPropagation()}>
             <button onClick={()=>move(i,true)} disabled={i===0} style={{width:26,height:26,borderRadius:6,border:'1px solid #e5e7eb',background:'#fff',cursor:i===0?'default':'pointer',color:i===0?'#d1d5db':'#374151',fontSize:12,fontFamily:'inherit'}}>▲</button>
             <button onClick={()=>move(i,false)} disabled={i===sorted.length-1} style={{width:26,height:26,borderRadius:6,border:'1px solid #e5e7eb',background:'#fff',cursor:i===sorted.length-1?'default':'pointer',color:i===sorted.length-1?'#d1d5db':'#374151',fontSize:12,fontFamily:'inherit'}}>▼</button>
@@ -595,19 +582,75 @@ function CatManager({cats,setCats,bones}){
 // ── FIREBASE SETUP ──
 function FbSetup({onSave}){
   const [raw,setRaw]=useState('');const [err,setErr]=useState('');
-  function save(){setErr('');try{let cfg;const c=raw.trim();if(c.startsWith('{'))cfg=JSON.parse(c);else{const m=c.match(/const\s+firebaseConfig\s*=\s*(\{[\s\S]*?\});/);if(m)cfg=eval('('+m[1]+')');else throw new Error('설정 형식을 인식할 수 없어요.');}if(!cfg.apiKey||!cfg.projectId)throw new Error('apiKey, projectId 필드가 필요해요.');onSave(cfg);}catch(e){setErr(e.message);}}
+  function save(){setErr('');try{let cfg;const c=raw.trim();if(c.startsWith('{'))cfg=JSON.parse(c);else{const m=c.match(/const\s+firebaseConfig\s*=\s*({[\s\S]*?});/);if(m)cfg=eval('('+m[1]+')');else throw new Error('설정 형식을 인식할 수 없어요.');}if(!cfg.apiKey||!cfg.projectId)throw new Error('apiKey, projectId 필드가 필요해요.');onSave(cfg);}catch(e){setErr(e.message);}}
   return(<div style={{minHeight:'100vh',background:'#f8fafc',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
     <div style={{width:'100%',maxWidth:480,background:'#fff',borderRadius:20,padding:28,boxShadow:'0 4px 24px rgba(0,0,0,0.08)'}}>
       <div style={{fontSize:28,marginBottom:4}}>🔥</div>
       <div style={{fontSize:20,fontWeight:900,marginBottom:4}}>Firebase 연결</div>
       <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>단어·통계를 Google 계정에 저장하려면 Firebase 프로젝트가 필요해요.</div>
       <div style={{fontSize:12,fontWeight:700,color:'#374151',letterSpacing:1,marginBottom:8}}>FIREBASE CONFIG 붙여넣기</div>
-      <textarea value={raw} onChange={e=>{setRaw(e.target.value);setErr('');}} placeholder={'{\n  "apiKey": "AIza...",\n  "authDomain": "...",\n  "projectId": "...",\n  ...\n}'} style={{width:'100%',minHeight:130,padding:12,border:`1.5px solid ${err?'#fca5a5':'#e5e7eb'}`,borderRadius:12,fontSize:12,fontFamily:'monospace',resize:'vertical',outline:'none',color:'#111827',background:'#f9fafb'}}/>
+      <textarea value={raw} onChange={e=>{setRaw(e.target.value);setErr('');}} placeholder={'{\n  "apiKey": "AIza…",\n  "authDomain": "…",\n  "projectId": "…",\n  …\n}'} style={{width:'100%',minHeight:130,padding:12,border:`1.5px solid ${err?'#fca5a5':'#e5e7eb'}`,borderRadius:12,fontSize:12,fontFamily:'monospace',resize:'vertical',outline:'none',color:'#111827',background:'#f9fafb'}}/>
       {err&&<div style={{fontSize:12,color:'#dc2626',marginTop:6,padding:'8px 12px',background:'#fef2f2',borderRadius:8}}>⚠️ {err}</div>}
       <button onClick={save} disabled={!raw.trim()} style={{marginTop:12,width:'100%',padding:14,borderRadius:12,border:'none',fontSize:15,fontWeight:700,cursor:raw.trim()?'pointer':'default',background:raw.trim()?'#111827':'#e5e7eb',color:raw.trim()?'#fff':'#9ca3af',fontFamily:'inherit'}}>연결하기 →</button>
       <div style={{marginTop:14,padding:'10px 14px',background:'#fefce8',border:'1px solid #fde68a',borderRadius:10,fontSize:12,color:'#92400e'}}>💡 Firebase 무료 플랜(Spark)으로 충분해요.</div>
     </div>
   </div>);
+}
+
+// ── [신규] 비밀번호 보호 초기화 모달 ──
+function ResetModal({onClose,onClearStats,onResetBones,onResetFb,onBackup}){
+  const [pw,setPw]=useState('');
+  const [step,setStep]=useState('pw'); // 'pw' | 'menu'
+  const [err,setErr]=useState('');
+  const [sk,setSk]=useState(0);
+  const CORRECT='1215';
+  function tryPw(){
+    if(pw===CORRECT){setStep('menu');setErr('');}
+    else{setErr('비밀번호가 올바르지 않습니다');setSk(k=>k+1);setPw('');}
+  }
+  if(step==='pw')return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{background:'#fff',borderRadius:20,padding:28,width:'100%',maxWidth:320,textAlign:'center',boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
+        <div style={{fontSize:36,marginBottom:8}}>🔐</div>
+        <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>관리자 인증</div>
+        <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>비밀번호를 입력하세요</div>
+        <div key={sk} className={err?'shake':''}>
+          <input autoFocus value={pw} onChange={e=>{setPw(e.target.value);setErr('');}}
+            onKeyDown={e=>{if(e.key==='Enter')tryPw();}}
+            type='password' placeholder='비밀번호'
+            style={{...INP,textAlign:'center',letterSpacing:6,fontSize:20,marginBottom:err?6:14,border:`1.5px solid ${err?'#fca5a5':'#e5e7eb'}`}}/>
+          {err&&<div style={{fontSize:12,color:'#dc2626',marginBottom:12,padding:'6px 10px',background:'#fef2f2',borderRadius:8}}>{err}</div>}
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={onClose} style={{flex:1,padding:12,borderRadius:10,border:'1px solid #e5e7eb',background:'#fff',color:'#6b7280',cursor:'pointer',fontFamily:'inherit',fontSize:14}}>취소</button>
+          <button onClick={tryPw} style={{flex:2,padding:12,borderRadius:10,border:'none',background:'#111827',color:'#fff',fontWeight:700,cursor:'pointer',fontFamily:'inherit',fontSize:14}}>확인</button>
+        </div>
+      </div>
+    </div>
+  );
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{background:'#fff',borderRadius:20,padding:28,width:'100%',maxWidth:320,boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
+        <div style={{fontSize:17,fontWeight:900,marginBottom:4}}>⚙️ 관리 메뉴</div>
+        <div style={{fontSize:12,color:'#9ca3af',marginBottom:20}}>인증 완료 · 신중하게 사용하세요</div>
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <button onClick={()=>{onBackup();onClose();}} style={{padding:'13px 16px',borderRadius:12,border:'1px solid #0ea5e9',background:'#f0f9ff',color:'#0369a1',cursor:'pointer',fontSize:14,fontWeight:700,textAlign:'left',fontFamily:'inherit'}}>
+            💾 데이터 백업 (JSON 다운로드)
+          </button>
+          <button onClick={()=>{if(window.confirm('통계를 초기화할까요?')){onClearStats();onClose();}}} style={{padding:'13px 16px',borderRadius:12,border:'1px solid #fde68a',background:'#fefce8',color:'#92400e',cursor:'pointer',fontSize:14,fontWeight:700,textAlign:'left',fontFamily:'inherit'}}>
+            📊 퀴즈 통계 초기화
+          </button>
+          <button onClick={()=>{if(window.confirm('단어를 기본값으로 초기화할까요?\n추가한 단어가 모두 사라져요.')){onResetBones();onClose();}}} style={{padding:'13px 16px',borderRadius:12,border:'1px solid #fca5a5',background:'#fff5f5',color:'#dc2626',cursor:'pointer',fontSize:14,fontWeight:700,textAlign:'left',fontFamily:'inherit'}}>
+            🔄 단어 기본값으로 초기화
+          </button>
+          <button onClick={()=>{if(window.confirm('Firebase 설정을 초기화할까요?\n앱을 다시 설정해야 해요.')){onResetFb();onClose();}}} style={{padding:'13px 16px',borderRadius:12,border:'1px solid #e5e7eb',background:'#f9fafb',color:'#374151',cursor:'pointer',fontSize:14,fontWeight:700,textAlign:'left',fontFamily:'inherit'}}>
+            🔧 Firebase 설정 초기화
+          </button>
+        </div>
+        <button onClick={onClose} style={{marginTop:14,width:'100%',padding:12,borderRadius:10,border:'1px solid #e5e7eb',background:'#fff',color:'#6b7280',cursor:'pointer',fontFamily:'inherit',fontSize:14}}>닫기</button>
+      </div>
+    </div>
+  );
 }
 
 // ── MAIN ──
@@ -622,9 +665,35 @@ function App(){
   const [imgUrls,setImgUrls]=useState({});
   const [sync,setSync]=useState(null);
   const [mode,setMode]=useState('classify');
+  // [신규] 로고 클릭 카운터 & 리셋 모달
+  const [logoClicks,setLogoClicks]=useState(0);
+  const [showReset,setShowReset]=useState(false);
+  const logoTimer=useRef(null);
   const st=useRef(null);
 
   function showSync(s){setSync(s);if(st.current)clearTimeout(st.current);if(s==='saved')st.current=setTimeout(()=>setSync(null),2000);}
+
+  // [신규] 로고 3번 클릭 핸들러
+  function handleLogoClick(){
+    const next=logoClicks+1;
+    setLogoClicks(next);
+    if(logoTimer.current)clearTimeout(logoTimer.current);
+    if(next>=3){setLogoClicks(0);setShowReset(true);}
+    else{logoTimer.current=setTimeout(()=>setLogoClicks(0),1800);}
+  }
+
+  // [신규] 백업 함수
+  function downloadBackup(){
+    const data={version:1,exportedAt:new Date().toISOString(),bones,categories:cats,stats};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    const ts=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+    a.download=`anatomy_backup_${ts}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   useEffect(()=>{
     if(!fbCfg)return;
@@ -651,27 +720,38 @@ function App(){
   const clearStats=()=>{setStats({});if(user)dbSave(user.uid,{stats:{}});};
   const signIn=async()=>{const p=new firebase.auth.GoogleAuthProvider();try{await _auth.signInWithPopup(p);}catch{}};
   const signOut=async()=>{await _auth.signOut();};
-  const resetCfg=()=>{if(confirm('Firebase 설정을 초기화할까요?')){localStorage.removeItem('fb_cfg');setFbCfg(null);}};
+  const resetFbCfg=()=>{localStorage.removeItem('fb_cfg');setFbCfg(null);};
 
   if(!fbCfg)return <FbSetup onSave={cfg=>{localStorage.setItem('fb_cfg',JSON.stringify(cfg));setFbCfg(cfg);}}/>;
-  if(dataLoading)return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f8fafc'}}><div style={{textAlign:'center'}}><div style={{fontSize:40,marginBottom:16}}>🦴</div><div style={{color:'#6b7280',fontSize:14}}>계정 데이터 불러오는 중...</div></div></div>;
+  if(dataLoading)return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f8fafc'}}><div style={{textAlign:'center'}}><div style={{fontSize:40,marginBottom:16}}>🦴</div><div style={{color:'#6b7280',fontSize:14}}>계정 데이터 불러오는 중…</div></div></div>;
 
   const wrongTotal=Object.values(stats).reduce((a,b)=>a+b,0);
-  const MODES=[{id:'classify',label:'분류',icon:'📊'},{id:'compare',label:'비교',icon:'⚡'},{id:'flashcard',label:'카드',icon:'📇'},{id:'quiz',label:'퀴즈',icon:'🎯'},{id:'stats',label:'통계',icon:'📈',badge:wrongTotal>0?wrongTotal:null},{id:'manage',label:'단어',icon:'✏️'},{id:'catmgr',label:'분류관리',icon:'🗂️'}];
+  // [수정] 비교 탭 제거
+  const MODES=[
+    {id:'classify',label:'분류',icon:'📊'},
+    {id:'flashcard',label:'카드',icon:'📇'},
+    {id:'quiz',label:'퀴즈',icon:'🎯'},
+    {id:'stats',label:'통계',icon:'📈',badge:wrongTotal>0?wrongTotal:null},
+    {id:'manage',label:'단어',icon:'✏️'},
+    {id:'catmgr',label:'분류관리',icon:'🗂️'}
+  ];
 
   return(<div style={{minHeight:'100vh',background:'#f8fafc',paddingBottom:68}}>
     {/* 헤더 */}
     <div style={{borderBottom:'1px solid #e5e7eb',background:'#fff',padding:'10px 16px',position:'sticky',top:0,zIndex:50,boxShadow:'0 1px 3px rgba(0,0,0,0.05)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-      <div>
+      {/* [수정] 로고에 클릭 핸들러 추가 — 3번 클릭 시 비번 모달 */}
+      <div onClick={handleLogoClick} style={{cursor:'pointer',userSelect:'none'}}>
         <div style={{fontSize:15,fontWeight:900,letterSpacing:-0.5}}>🦴 골격계 해부학</div>
         <div style={{fontSize:10,letterSpacing:1.5,marginTop:1,display:'flex',alignItems:'center',gap:6}}>
           <span style={{color:'#9ca3af'}}>SKELETAL ANATOMY · {bones.length}개 단어</span>
-          {sync==='saving'&&<span style={{color:'#0ea5e9'}}>저장 중...</span>}
+          {sync==='saving'&&<span style={{color:'#0ea5e9'}}>저장 중…</span>}
           {sync==='saved'&&<span style={{color:'#16a34a'}}>✓ 저장됨</span>}
+          {logoClicks>0&&<span style={{color:'#f59e0b',fontWeight:700}}>{logoClicks}/3</span>}
         </div>
       </div>
       <div style={{display:'flex',alignItems:'center',gap:8}}>
-        {user&&<button onClick={resetCfg} style={{padding:'4px 8px',borderRadius:8,border:'1px solid #e5e7eb',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:10}}>🔧</button>}
+        {/* [신규] 백업 버튼 (헤더) */}
+        <button onClick={downloadBackup} title='데이터 백업' style={{padding:'5px 8px',borderRadius:8,border:'1px solid #e5e7eb',background:'transparent',color:'#9ca3af',cursor:'pointer',fontSize:13}}>💾</button>
         {authLoading?<div style={{width:28,height:28}}/>
         :user?<div style={{position:'relative'}}>
           <button onClick={()=>{const m=document.getElementById('pm');m.style.display=m.style.display==='none'?'block':'none';}} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 10px',borderRadius:20,border:'1px solid #e5e7eb',background:'#f9fafb',cursor:'pointer',fontFamily:'inherit'}}>
@@ -697,10 +777,9 @@ function App(){
     {/* 콘텐츠 */}
     <div style={{maxWidth:580,margin:'0 auto'}}>
       {mode==='classify'&&<ClassifyMode bones={bones} cats={cats} setBones={saveBones} setCats={saveCats}/>}
-      {mode==='compare'&&<CompareMode bones={bones} cats={cats}/>}
       {mode==='flashcard'&&<FlashcardMode bones={bones} cats={cats} user={user} imgUrls={imgUrls} setImgUrls={setImgUrls}/>}
       {mode==='quiz'&&<QuizMode bones={bones} cats={cats} onWrong={addWrong}/>}
-      {mode==='stats'&&<StatsMode bones={bones} cats={cats} stats={stats} onClear={clearStats}/>}
+      {mode==='stats'&&<StatsMode bones={bones} cats={cats} stats={stats}/>}
       {mode==='manage'&&<WordManager bones={bones} cats={cats} setBones={saveBones} setCats={saveCats}/>}
       {mode==='catmgr'&&<CatManager cats={cats} setCats={saveCats} bones={bones}/>}
     </div>
@@ -715,6 +794,14 @@ function App(){
         </button>
       ))}
     </div>
+    {/* [신규] 비밀번호 보호 초기화 모달 */}
+    {showReset&&<ResetModal
+      onClose={()=>setShowReset(false)}
+      onClearStats={clearStats}
+      onResetBones={()=>saveBones(DEFAULT_BONES)}
+      onResetFb={resetFbCfg}
+      onBackup={downloadBackup}
+    />}
   </div>);
 }
 
